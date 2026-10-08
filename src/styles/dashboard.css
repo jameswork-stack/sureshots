@@ -1,0 +1,1112 @@
+/* =========================
+   DASHBOARD PAGE
+========================= */
+
+.dashboard-page {
+  width: 100%;
+  min-height: calc(100vh - 60px);
+}
+
+
+/* =========================
+   DASHBOARD HEADER
+========================= */
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.dashboard-header h1 {
+  margin: 0;
+
+  color: #0f172a;
+
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.dashboard-header p {
+  margin: 6px 0 0;
+
+  color: #64748b;
+
+  font-size: 14px;
+}
+
+
+/* =========================
+   DASHBOARD CARDS
+========================= */
+
+.dashboard-cards {
+  display: grid;
+
+  grid-template-columns: repeat(
+    4,
+    minmax(0, 1fr)
+  );
+
+  gap: 20px;
+
+  margin-bottom: 25px;
+}
+
+
+/* =========================
+   DASHBOARD CARD
+========================= */
+
+.dashboard-card {
+  background: rgba(255, 255, 255, 0.95);
+
+  border: 1px solid #e2e8f0;
+
+  border-radius: 14px;
+
+  padding: 20px;
+
+  box-shadow:
+    0 4px 12px rgba(15, 23, 42, 0.06);
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 8px 20px rgba(15, 23, 42, 0.1);
+}
+
+
+/* =========================
+   CARD CONTENT
+========================= */
+
+.dashboard-card-content {
+  min-width: 0;
+}
+
+.dashboard-card-content p {
+  margin: 0 0 5px;
+
+  color: #64748b;
+
+  font-size: 13px;
+
+  font-weight: 500;
+}
+
+.dashboard-card-content h2 {
+  margin: 0;
+
+  color: #0f172a;
+
+  font-size: 30px;
+
+  font-weight: 700;
+
+  line-height: 1.2;
+}
+
+.dashboard-card-content span {
+  display: block;
+
+  margin-top: 4px;
+
+  color: #94a3b8;
+
+  font-size: 12px;
+}
+
+
+/* =========================
+   CARD BORDERS
+========================= */
+
+.completed-card {
+  border-color: #bbf7d0;
+}
+
+.present-card {
+  border-color: #bfdbfe;
+}
+
+.revenue-card {
+  border-color: #fde68a;
+}
+
+
+/* =========================
+   SALES CHART CARD
+========================= */
+
+.sales-chart-card {
+  width: 100%;
+
+  background: rgba(
+    255,
+    255,
+    255,
+    0.96
+  );
+
+  border: 1px solid #e2e8f0;
+
+  border-radius: 16px;
+
+  padding: 25px;
+
+  box-shadow:
+    0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+
+/* =========================
+   SALES CHART HEADER
+========================= */
+
+.sales-chart-header {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: flex-start;
+
+  margin-bottom: 30px;
+}
+
+.sales-chart-header h2 {
+  margin: 0;
+
+  color: #0f172a;
+
+  font-size: 20px;
+
+  font-weight: 700;
+}
+
+.sales-chart-header p {
+  margin: 5px 0 0;
+
+  color: #64748b;
+
+  font-size: 13px;
+}
+
+
+/* =========================
+   TOTAL SALES
+========================= */
+
+.sales-chart-total {
+  text-align: right;
+}
+
+.sales-chart-total span {
+  display: block;
+
+  margin-bottom: 4px;
+
+  color: #94a3b8;
+
+  font-size: 12px;
+}
+
+.sales-chart-total strong {
+  color: #0f172a;
+
+  font-size: 20px;
+
+  font-weight: 700;
+}
+
+
+/* =========================
+   CHART CONTAINER
+========================= */
+
+.sales-chart-container {
+  display: flex;
+
+  width: 100%;
+
+  height: 350px;
+}
+
+
+/* =========================
+   Y AXIS
+========================= */
+
+.sales-y-axis {
+  width: 90px;
+
+  flex-shrink: 0;
+
+  display: flex;
+
+  flex-direction: column;
+
+  justify-content: space-between;
+
+  padding-top: 5px;
+
+  padding-bottom: 45px;
+
+  text-align: right;
+
+  padding-right: 12px;
+}
+
+.sales-y-axis span {
+  color: #94a3b8;
+
+  font-size: 11px;
+}
+
+
+/* =========================
+   CHART
+========================= */
+
+.sales-chart {
+  position: relative;
+
+  flex: 1;
+
+  min-width: 0;
+
+  height: 100%;
+}
+
+
+/* =========================
+   GRID LINES
+========================= */
+
+.chart-grid-line {
+  position: absolute;
+
+  left: 0;
+
+  right: 0;
+
+  border-top: 1px dashed #e2e8f0;
+}
+
+.chart-grid-top {
+  top: 5px;
+}
+
+.chart-grid-middle {
+  top: 50%;
+}
+
+.chart-grid-bottom {
+  bottom: 45px;
+}
+
+
+/* =========================
+   SALES BARS
+========================= */
+
+.sales-bars {
+  position: absolute;
+
+  left: 0;
+
+  right: 0;
+
+  top: 5px;
+
+  bottom: 0;
+
+  display: grid;
+
+  grid-template-columns:
+    repeat(6, minmax(0, 1fr));
+
+  gap: 20px;
+
+  padding: 0 10px;
+}
+
+
+/* =========================
+   BAR COLUMN
+========================= */
+
+.sales-bar-column {
+  position: relative;
+
+  height: 100%;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: flex-end;
+}
+
+
+/* =========================
+   BAR VALUE
+========================= */
+
+.sales-bar-value {
+  width: 100%;
+
+  margin-bottom: 8px;
+
+  text-align: center;
+
+  color: #64748b;
+
+  font-size: 10px;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+
+/* =========================
+   BAR WRAPPER
+========================= */
+
+.sales-bar-wrapper {
+  width: 100%;
+
+  height: calc(100% - 65px);
+
+  display: flex;
+
+  align-items: flex-end;
+
+  justify-content: center;
+}
+
+
+/* =========================
+   BAR
+========================= */
+
+.sales-bar {
+  width: 55%;
+
+  min-height: 0;
+
+  background: #3b82f6;
+
+  border-radius:
+    7px 7px 0 0;
+
+  transition:
+    height 0.4s ease,
+    opacity 0.2s ease;
+}
+
+.sales-bar:hover {
+  opacity: 0.8;
+}
+
+
+/* =========================
+   MONTH LABEL
+========================= */
+
+.sales-bar-label {
+  height: 45px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  color: #64748b;
+
+  font-size: 12px;
+
+  font-weight: 500;
+}
+
+
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media (max-width: 1200px) {
+  .dashboard-cards {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
+
+
+@media (max-width: 800px) {
+  .sales-chart-card {
+    padding: 20px;
+  }
+
+  .sales-chart-header {
+    flex-direction: column;
+
+    gap: 15px;
+  }
+
+  .sales-chart-total {
+    text-align: left;
+  }
+
+  .sales-chart-container {
+    height: 300px;
+  }
+
+  .sales-bars {
+    gap: 10px;
+    padding: 0 5px;
+  }
+
+  .sales-bar {
+    width: 65%;
+  }
+
+  .sales-bar-value {
+    font-size: 9px;
+  }
+}
+
+
+@media (max-width: 700px) {
+  .dashboard-page {
+    min-height: 100vh;
+  }
+
+  .dashboard-header {
+    margin-bottom: 20px;
+  }
+
+  .dashboard-header h1 {
+    font-size: 26px;
+  }
+
+  .dashboard-header p {
+    font-size: 13px;
+  }
+
+  .dashboard-cards {
+    grid-template-columns: 1fr;
+
+    gap: 15px;
+  }
+
+  .dashboard-card {
+    padding: 18px;
+  }
+
+  .sales-chart-card {
+    padding: 15px;
+  }
+
+  .sales-chart-header h2 {
+    font-size: 18px;
+  }
+
+  .sales-chart-container {
+    height: 270px;
+  }
+
+  .sales-y-axis {
+    width: 65px;
+    padding-right: 8px;
+  }
+
+  .sales-y-axis span {
+    font-size: 9px;
+  }
+
+  .sales-bars {
+    gap: 5px;
+  }
+
+  .sales-bar-value {
+    font-size: 8px;
+  }
+
+  .sales-bar {
+    width: 70%;
+  }
+
+  .sales-bar-label {
+    font-size: 11px;
+  }
+}
+/* =========================
+   TOP 5 PACKAGE SALES
+========================= */
+
+.top-packages-card {
+  width: 100%;
+
+  margin-top: 25px;
+
+  background: rgba(
+    255,
+    255,
+    255,
+    0.96
+  );
+
+  border: 1px solid #e2e8f0;
+
+  border-radius: 16px;
+
+  padding: 25px;
+
+  box-shadow:
+    0 4px 12px rgba(
+      15,
+      23,
+      42,
+      0.06
+    );
+}
+
+
+/* =========================
+   HEADER
+========================= */
+
+.top-packages-header {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  margin-bottom: 20px;
+}
+
+.top-packages-header h2 {
+  margin: 0;
+
+  color: #0f172a;
+
+  font-size: 20px;
+
+  font-weight: 700;
+}
+
+.top-packages-header p {
+  margin: 5px 0 0;
+
+  color: #64748b;
+
+  font-size: 13px;
+}
+
+
+/* =========================
+   PACKAGE LIST
+========================= */
+
+.top-packages-list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 10px;
+}
+
+
+/* =========================
+   PACKAGE ITEM
+========================= */
+
+.top-package-item {
+  display: flex;
+
+  align-items: center;
+
+  gap: 15px;
+
+  padding: 15px;
+
+  background: #f8fafc;
+
+  border: 1px solid #e2e8f0;
+
+  border-radius: 10px;
+
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.top-package-item:hover {
+  background: #f1f5f9;
+
+  transform: translateX(2px);
+}
+
+
+/* =========================
+   RANK
+========================= */
+
+.package-rank {
+  width: 36px;
+
+  height: 36px;
+
+  flex-shrink: 0;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: #e2e8f0;
+
+  color: #334155;
+
+  font-size: 14px;
+
+  font-weight: 700;
+}
+
+
+/* =========================
+   PACKAGE INFO
+========================= */
+
+.package-info {
+  flex: 1;
+
+  min-width: 0;
+}
+
+.package-info h3 {
+  margin: 0;
+
+  color: #0f172a;
+
+  font-size: 14px;
+
+  font-weight: 600;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+.package-info span {
+  display: block;
+
+  margin-top: 3px;
+
+  color: #94a3b8;
+
+  font-size: 11px;
+}
+
+
+/* =========================
+   TOTAL SALES
+========================= */
+
+.package-total {
+  color: #0f172a;
+
+  font-size: 15px;
+
+  font-weight: 700;
+
+  white-space: nowrap;
+}
+
+
+/* =========================
+   NO DATA
+========================= */
+
+.no-packages {
+  padding: 30px;
+
+  text-align: center;
+
+  color: #94a3b8;
+
+  font-size: 13px;
+}
+
+
+/* =========================
+   MOBILE
+========================= */
+
+@media (max-width: 700px) {
+
+  .top-packages-card {
+    padding: 15px;
+  }
+
+  .top-package-item {
+    gap: 10px;
+
+    padding: 12px;
+  }
+
+  .package-rank {
+    width: 32px;
+
+    height: 32px;
+
+    font-size: 12px;
+  }
+
+  .package-info h3 {
+    font-size: 13px;
+  }
+
+  .package-total {
+    font-size: 13px;
+  }
+}
+
+/* Dashboard refresh */
+.dashboard-page {
+  --dashboard-ink: #0f172a;
+  --dashboard-muted: #64748b;
+  --dashboard-border: #dbeafe;
+  --dashboard-blue: #3b82f6;
+
+  color: var(--dashboard-ink);
+}
+
+.dashboard-header {
+  margin-bottom: 26px;
+}
+
+.dashboard-header h1 {
+  color: var(--dashboard-ink);
+  font-size: clamp(28px, 3vw, 36px);
+  letter-spacing: -0.04em;
+}
+
+.dashboard-header p {
+  color: var(--dashboard-muted);
+  font-size: 14px;
+}
+
+.dashboard-cards {
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.dashboard-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 150px;
+  padding: 22px;
+  border: 1px solid var(--dashboard-border);
+  border-radius: 18px;
+  background: linear-gradient(145deg, #ffffff 55%, #f8fbff);
+  box-shadow: 0 8px 24px rgba(104, 47, 75, 0.06);
+}
+
+.dashboard-card::after {
+  position: absolute;
+  top: -28px;
+  right: -24px;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: rgba(147, 197, 253, 0.2);
+  content: "";
+  pointer-events: none;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(104, 47, 75, 0.1);
+}
+
+.dashboard-card-content {
+  position: relative;
+  z-index: 1;
+}
+
+.dashboard-card-content p {
+  margin-bottom: 10px;
+  color: var(--dashboard-muted);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.035em;
+}
+
+.dashboard-card-content h2 {
+  color: var(--dashboard-ink);
+  font-size: clamp(26px, 2vw, 34px);
+  letter-spacing: -0.035em;
+}
+
+.dashboard-card-content span {
+  margin-top: 8px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.completed-card {
+  border-color: #d8eee2;
+}
+
+.completed-card::after {
+  background: rgba(167, 243, 208, 0.2);
+}
+
+.present-card {
+  border-color: #dce7fa;
+}
+
+.present-card::after {
+  background: rgba(191, 219, 254, 0.24);
+}
+
+.revenue-card {
+  border-color: #fde68a;
+}
+
+.revenue-card::after {
+  background: rgba(191, 219, 254, 0.24);
+}
+
+.dashboard-insights {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(280px, 1fr);
+  align-items: stretch;
+  gap: 20px;
+}
+
+.sales-chart-card,
+.top-packages-card {
+  min-width: 0;
+  margin-top: 0;
+  padding: 24px;
+  border: 1px solid var(--dashboard-border);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(104, 47, 75, 0.06);
+}
+
+.sales-chart-header {
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.sales-chart-header h2,
+.top-packages-header h2 {
+  color: var(--dashboard-ink);
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.sales-chart-header p,
+.top-packages-header p {
+  color: var(--dashboard-muted);
+  line-height: 1.5;
+}
+
+.sales-filter {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: #eff6ff;
+}
+
+.sales-filter button {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sales-filter button:hover {
+  color: #1d4ed8;
+}
+
+.sales-filter button.active {
+  background: #dbeafe;
+  color: #1d4ed8;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.12);
+}
+
+.sales-chart-container {
+  height: 330px;
+}
+
+.sales-y-axis span,
+.sales-bar-label {
+  color: #94a3b8;
+}
+
+.chart-grid-line {
+  border-color: #e2e8f0;
+}
+
+.sales-bar-value {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.sales-bar {
+  background: linear-gradient(180deg, #93c5fd 0%, #3b82f6 100%);
+  border-radius: 7px 7px 2px 2px;
+}
+
+.top-packages-header {
+  margin-bottom: 18px;
+}
+
+.top-package-item {
+  gap: 12px;
+  padding: 13px;
+  border-color: #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.top-package-item:hover {
+  background: #eff6ff;
+}
+
+.package-rank {
+  width: 34px;
+  height: 34px;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.top-package-item:first-child .package-rank {
+  background: #bfdbfe;
+  color: #1e40af;
+}
+
+.package-info h3,
+.package-total {
+  color: var(--dashboard-ink);
+}
+
+.package-info span {
+  color: #94a3b8;
+}
+
+.no-packages {
+  border: 1px dashed #bfdbfe;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: var(--dashboard-muted);
+}
+
+.chart-30-days {
+  overflow-x: auto;
+}
+
+.chart-30-days .sales-chart {
+  min-width: 760px;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-insights {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .top-packages-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 800px) {
+  .sales-chart-header {
+    align-items: flex-start;
+  }
+
+  .sales-filter {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .top-packages-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
+  .dashboard-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .dashboard-card {
+    min-height: 135px;
+    padding: 16px;
+  }
+
+  .dashboard-card-content p {
+    font-size: 11px;
+  }
+
+  .sales-chart-card,
+  .top-packages-card {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 420px) {
+  .dashboard-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sales-chart-header {
+    gap: 12px;
+  }
+
+  .sales-filter {
+    width: 100%;
+  }
+
+  .sales-filter button {
+    flex: 1;
+    padding-inline: 7px;
+    font-size: 10px;
+  }
+}

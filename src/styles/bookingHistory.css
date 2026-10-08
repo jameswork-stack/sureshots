@@ -1,0 +1,380 @@
+.booking-history-page {
+  padding: 10px;
+}
+
+.booking-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.booking-history-header h1 {
+  margin: 0;
+  font-size: 28px;
+  color: #1f2937;
+}
+
+.booking-history-header p {
+  margin-top: 6px;
+  color: #6b7280;
+}
+
+/* History List */
+
+.booking-history-list {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  overflow: visible;
+}
+
+.booking-history-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 20px;
+
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.booking-history-list-header h2 {
+  margin: 0;
+
+  font-size: 20px;
+  color: #1f2937;
+}
+
+.booking-history-list-header span {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+/* Table */
+
+.history-table-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 800px;
+}
+
+.history-table th {
+  background: #f9fafb;
+
+  padding: 14px 16px;
+
+  text-align: left;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  color: #6b7280;
+
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.history-table td {
+  padding: 16px;
+
+  border-bottom: 1px solid #f1f1f1;
+
+  font-size: 14px;
+
+  color: #374151;
+}
+
+.history-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+/* Status */
+
+.history-status {
+  display: inline-block;
+
+  padding: 5px 10px;
+
+  border-radius: 20px;
+
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.history-status.completed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.history-status.cancelled {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* Empty / Loading */
+
+.history-message {
+  padding: 50px 20px;
+
+  text-align: center;
+
+  color: #6b7280;
+}
+
+/* Mobile */
+
+@media (max-width: 600px) {
+  .booking-history-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}
+
+/* ================================
+   HISTORY ACTIONS
+================================ */
+
+.history-action-cell {
+  white-space: nowrap;
+}
+
+.history-view-btn,
+.history-delete-btn {
+  padding: 7px 12px;
+
+  border-radius: 6px;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.history-view-btn {
+  border: 1px solid #2563eb;
+
+  background: white;
+
+  color: #2563eb;
+
+  margin-right: 6px;
+}
+
+.history-view-btn:hover {
+  background: #eff6ff;
+}
+
+.history-delete-btn {
+  border: none;
+
+  background: #fee2e2;
+
+  color: #b91c1c;
+}
+
+.history-delete-btn:hover {
+  background: #fecaca;
+}
+
+
+/* ================================
+   VIEW MODAL
+================================ */
+
+.history-overlay {
+  position: fixed;
+
+  inset: 0;
+
+  background: rgba(0, 0, 0, 0.45);
+
+  display: flex;
+
+  justify-content: center;
+  align-items: center;
+
+  padding: 20px;
+
+  z-index: 3000;
+}
+
+.history-view-card {
+  width: 100%;
+  max-width: 700px;
+
+  max-height: 90vh;
+
+  overflow-y: auto;
+
+  background: white;
+
+  border-radius: 12px;
+
+  padding: 25px;
+
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.2);
+}
+
+.history-view-header {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  margin-bottom: 25px;
+}
+
+.history-view-header h2 {
+  margin: 0;
+
+  font-size: 22px;
+
+  color: #1f2937;
+}
+
+.history-close-btn {
+  width: 35px;
+  height: 35px;
+
+  border: none;
+
+  border-radius: 50%;
+
+  background: #f3f4f6;
+
+  font-size: 24px;
+
+  cursor: pointer;
+}
+
+.history-close-btn:hover {
+  background: #e5e7eb;
+}
+
+
+/* ================================
+   VIEW SECTIONS
+================================ */
+
+.history-view-section {
+  margin-bottom: 20px;
+
+  padding: 20px;
+
+  background: #f9fafb;
+
+  border: 1px solid #e5e7eb;
+
+  border-radius: 10px;
+}
+
+.history-view-section h3 {
+  margin: 0 0 20px;
+
+  font-size: 17px;
+
+  color: #1f2937;
+}
+
+.history-view-grid {
+  display: grid;
+
+  grid-template-columns: 1fr 1fr;
+
+  gap: 18px;
+}
+
+.history-view-item {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 5px;
+}
+
+.history-view-item span {
+  font-size: 12px;
+
+  font-weight: 600;
+
+  color: #6b7280;
+
+  text-transform: uppercase;
+}
+
+.history-view-item strong {
+  font-size: 15px;
+
+  color: #1f2937;
+}
+
+.history-view-item p {
+  margin: 0;
+
+  color: #374151;
+
+  font-size: 14px;
+
+  line-height: 1.6;
+}
+
+.history-full-width {
+  margin-top: 18px;
+}
+
+
+/* ================================
+   MODAL ACTION
+================================ */
+
+.history-view-actions {
+  display: flex;
+
+  justify-content: flex-end;
+
+  margin-top: 20px;
+}
+
+.history-close-action-btn {
+  padding: 11px 18px;
+
+  border: 1px solid #d1d5db;
+
+  border-radius: 7px;
+
+  background: white;
+
+  color: #374151;
+
+  font-size: 14px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.history-close-action-btn:hover {
+  background: #f3f4f6;
+}
+
+
+/* ================================
+   MOBILE
+================================ */
+
+@media (max-width: 600px) {
+  .history-view-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .history-view-card {
+    padding: 20px;
+  }
+}
