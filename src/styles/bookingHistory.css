@@ -144,42 +144,65 @@
   white-space: nowrap;
 }
 
-.history-view-btn,
-.history-delete-btn {
-  padding: 7px 12px;
-
-  border-radius: 6px;
-
-  font-size: 13px;
-  font-weight: 600;
-
+.history-three-dot-btn {
+  width: 35px;
+  height: 35px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: #4b5563;
+  font-size: 24px;
+  font-weight: bold;
+  line-height: 20px;
   cursor: pointer;
 }
 
-.history-view-btn {
-  border: 1px solid #2563eb;
-
-  background: white;
-
-  color: #2563eb;
-
-  margin-right: 6px;
+.history-three-dot-btn:hover {
+  background: #f3f4f6;
 }
 
-.history-view-btn:hover {
-  background: #eff6ff;
+.history-action-menu {
+  position: fixed;
+  z-index: 99999;
+  width: 200px;
+  padding: 4px 0;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.22);
 }
 
-.history-delete-btn {
+.history-action-menu button {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
   border: none;
+  background: #fff;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
 
-  background: #fee2e2;
+.history-action-menu button:hover {
+  background: #f3f4f6;
+}
 
+.history-action-menu button:focus-visible {
+  position: relative;
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
+
+.history-action-menu .history-menu-delete-item {
+  border-top: 1px solid #e5e7eb;
   color: #b91c1c;
 }
 
-.history-delete-btn:hover {
-  background: #fecaca;
+.history-action-menu .history-menu-delete-item:hover {
+  background: #fef2f2;
 }
 
 
@@ -283,6 +306,70 @@
   color: #1f2937;
 }
 
+.history-package-category {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.history-package-category h4 {
+  margin: 0 0 10px;
+  color: #1f2937;
+  font-size: 14px;
+}
+
+.history-package-category ul {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-package-category li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  color: #4b5563;
+  font-size: 13px;
+}
+
+.history-package-category li strong {
+  flex-shrink: 0;
+  color: #1d4ed8;
+  font-size: 13px;
+}
+
+.history-package-legacy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.history-package-legacy-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.history-package-legacy-item strong {
+  color: #1f2937;
+  font-size: 14px;
+}
+
+.history-package-legacy-item span {
+  color: #6b7280;
+  font-size: 12px;
+}
+
 .history-view-grid {
   display: grid;
 
@@ -364,6 +451,118 @@
   background: #f3f4f6;
 }
 
+.history-print-sheet {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 16mm;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .history-print-sheet,
+  .history-print-sheet * {
+    visibility: visible !important;
+  }
+
+  .history-print-sheet {
+    position: absolute !important;
+    inset: 0 auto auto 0;
+    display: block !important;
+    width: 100%;
+    padding: 0;
+    background: #fff;
+    color: #111827;
+    font-family: Arial, sans-serif;
+    font-size: 11pt;
+  }
+
+  .history-print-header {
+    margin-bottom: 24px;
+    padding-bottom: 14px;
+    border-bottom: 2px solid #1f2937;
+  }
+
+  .history-print-header p {
+    margin: 0 0 6px;
+    color: #6b7280;
+    font-size: 9pt;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+
+  .history-print-header h1 {
+    margin: 0;
+    font-size: 22pt;
+  }
+
+  .history-print-section {
+    margin: 0 0 20px;
+    break-inside: avoid;
+  }
+
+  .history-print-section h2 {
+    margin: 0 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #d1d5db;
+    font-size: 14pt;
+  }
+
+  .history-print-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 24px;
+    margin: 0;
+  }
+
+  .history-print-grid dt {
+    margin-bottom: 3px;
+    color: #6b7280;
+    font-size: 9pt;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .history-print-grid dd {
+    margin: 0;
+    font-size: 11pt;
+  }
+
+  .history-print-package {
+    margin: 0 0 12px;
+    break-inside: avoid;
+  }
+
+  .history-print-package h3 {
+    margin: 0 0 6px;
+    font-size: 11pt;
+  }
+
+  .history-print-package ul,
+  .history-print-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .history-print-package li,
+  .history-print-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 5px 0;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .history-print-sheet p {
+    white-space: pre-line;
+    line-height: 1.5;
+  }
+}
 
 /* ================================
    MOBILE
