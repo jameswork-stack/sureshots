@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import {
   collection,
   addDoc,
+  getDoc,
   getDocs,
   deleteDoc,
   updateDoc,
@@ -13,6 +14,54 @@ import {
 import { db } from "../firebase";
 import "../styles/bookingManagement.css";
 
+const RANGE_PACKAGE_CATALOG = {
+  "Range Fee Rates": [
+    { name: "Range Fee", unitPrice: 800, unit: "booking" },
+    { name: "Target Board", unitPrice: 50, unit: "board" },
+    {
+      name: "Exclusive use of the range",
+      unitPrice: 2000,
+      unit: "hour",
+    },
+  ],
+  "Ammunition Corkage": [
+    {
+      name: "1–100 rounds (₱8 per round)",
+      unitPrice: 8,
+      unit: "round",
+      pricing: "corkage-per-round",
+    },
+    {
+      name: "101+ rounds (₱1,000 flat)",
+      unitPrice: 1000,
+      unit: "rounds",
+      pricing: "corkage-flat",
+    },
+  ],
+  "Ammunition Prices": [
+    { name: ".22 High Velocity (50s)", unitPrice: 1000, unit: "box of 50" },
+    { name: ".38 Special", unitPrice: 38, unit: "round" },
+    { name: "9MM FMJ", unitPrice: 35, unit: "round" },
+    { name: "12 Gauge Birdshots", unitPrice: 60, unit: "round" },
+    { name: "5.56", unitPrice: 75, unit: "round" },
+    { name: "9m.m Teflon", unitPrice: 20, unit: "round" },
+    { name: "40 cal teflon", unitPrice: 20, unit: "round" },
+    { name: "45 acp teflon", unitPrice: 28, unit: "round" },
+  ],
+};
+
+const getRangeItemSubtotal = (item) => {
+  if (item.pricing === "corkage-flat") {
+    return 1000;
+  }
+
+  if (item.pricing === "corkage-per-round") {
+    return item.quantity * 8;
+  }
+
+  return item.unitPrice * item.quantity;
+};
+
 export default function BookingManagement() {
   const [showForm, setShowForm] = useState(false);
 
@@ -20,13 +69,16 @@ export default function BookingManagement() {
   const [bookingSearch, setBookingSearch] = useState("");
 
   const [viewingBooking, setViewingBooking] = useState(null);
+  const [loadingBookingView, setLoadingBookingView] = useState(false);
+  const [bookingViewError, setBookingViewError] = useState("");
 
   const [editingBookingId, setEditingBookingId] = useState(null);
 
   const [openMenuId, setOpenMenuId] = useState(null);
   const [menuPosition, setMenuPosition] = useState(null);
 
-  const [booking, setBooking] = useState({
+const [booking, setBooking] = useState({
+  customerType: "",
   bookName: "",
   details: "",
   price: "",
@@ -40,6 +92,14 @@ export default function BookingManagement() {
   expirationDate: "",
   phoneNumber: "",
 });
+  const [rangePackageItems, setRangePackageItems] = useState([]);
+  const [rangePackageCategory, setRangePackageCategory] = useState(
+    Object.keys(RANGE_PACKAGE_CATALOG)[0]
+  );
+  const [rangePackageOption, setRangePackageOption] = useState(
+    RANGE_PACKAGE_CATALOG[Object.keys(RANGE_PACKAGE_CATALOG)[0]][0].name
+  );
+  const [rangePackageQuantity, setRangePackageQuantity] = useState(1);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -131,33 +191,47 @@ const isTimeBooked = (date, time) => {
     setError("");
   };
 
+  const handleRemoveRangePackageItem = (indexToRemove) => {
+    setRangePackageItems((items) =>
+      items.filter((_, index) => index !== indexToRemove)
+    );
+
+    if (rangePackageItems.length === 1 && booking.bookName === "Range Package") {
+      setBooking((current) => ({
+        ...current,
+        bookName: "",
+        details: "",
+        price: "",
+      }));
+    }
+  };
+
 
   // ================================
   // OPEN ADD FORM
   // ================================
 
   const handleAddBooking = () => {
-
-    setEditingBookingId(null);
+  setEditingBookingId(null);
+    setRangePackageItems([]);
 
     setBooking({
-  bookName: "",
-  details: "",
-  price: "",
-  bookDate: "",
-  bookTime: "",
+    customerType: "",
+    bookName: "",
+    details: "",
+    price: "",
+    bookDate: "",
+    bookTime: "",
+    memberName: "",
+    memberType: "Regular",
+    memberNumber: "",
+    expirationDate: "",
+    phoneNumber: "",
+  });
 
-  memberName: "",
-  memberType: "Regular",
-  memberNumber: "",
-  expirationDate: "",
-  phoneNumber: "",
-});
-
-    setError("");
-
-    setShowForm(true);
-  };
+  setError("");
+  setShowForm(true);
+};
 
 
   // ================================
@@ -165,28 +239,65 @@ const isTimeBooked = (date, time) => {
   // ================================
 
   const handleEditBooking = (item) => {
+    const existingPackageItems = Array.isArray(item.packageItems)
+      ? item.packageItems
+      : [];
+    const existingPackageTotal = existingPackageItems.reduce(
+      (total, packageItem) => total + getRangeItemSubtotal(packageItem),
+      0
+    );
+    const additionalAmount = existingPackageItems.length
+      ? item.additionalAmount ??
+        Math.max(0, Number(item.price || 0) - existingPackageTotal)
+      : item.price ?? "";
 
     setEditingBookingId(item.id);
-
+    setRangePackageItems(existingPackageItems);
     setBooking({
-  bookName: item.bookName || "",
-  details: item.details || "",
-  price: item.price || "",
-  bookDate: item.bookDate || "",
-  bookTime: item.bookTime || "",
-
-  memberName: item.memberName || "",
-  memberType: item.memberType || "Regular",
-  memberNumber: item.memberNumber || "",
-  expirationDate: item.expirationDate || "",
-  phoneNumber: item.phoneNumber || "",
-});
+      customerType:
+        item.customerType ||
+        (item.memberName || item.memberNumber ? "member" : "regular"),
+      bookName: item.bookName || "",
+      details: item.details || "",
+      price: additionalAmount,
+      bookDate: item.bookDate || "",
+      bookTime: item.bookTime || "",
+      memberName: item.memberName || "",
+      memberType: item.memberType || "Regular",
+      memberNumber: item.memberNumber || "",
+      expirationDate: item.expirationDate || "",
+      phoneNumber: item.phoneNumber || "",
+    });
 
     setError("");
-
     setOpenMenuId(null);
-
     setShowForm(true);
+  };
+  const handleViewBooking = async (item) => {
+    setOpenMenuId(null);
+    setMenuPosition(null);
+    setViewingBooking(item);
+    setLoadingBookingView(true);
+    setBookingViewError("");
+
+    try {
+      const bookingSnapshot = await getDoc(doc(db, "bookings", item.id));
+
+      if (!bookingSnapshot.exists()) {
+        setBookingViewError("This booking could not be found in the database.");
+        return;
+      }
+
+      setViewingBooking({
+        id: bookingSnapshot.id,
+        ...bookingSnapshot.data(),
+      });
+    } catch (viewError) {
+      console.error("Error loading booking details:", viewError);
+      setBookingViewError("Failed to load booking details from the database.");
+    } finally {
+      setLoadingBookingView(false);
+    }
   };
 
 
@@ -200,35 +311,94 @@ const isTimeBooked = (date, time) => {
 
     setError("");
 
+    const isRangePackage = rangePackageItems.length > 0;
+    const packageTotal = rangePackageItems.reduce(
+      (total, item) => total + getRangeItemSubtotal(item),
+      0
+    );
+    const additionalAmount = isRangePackage
+      ? Number(booking.price || 0)
+      : 0;
+    const bookName = isRangePackage ? "Range Package" : booking.bookName.trim();
+    const details = isRangePackage
+      ? rangePackageItems
+          .map(
+            (item) =>
+              `${item.category}: ${item.name} — ${item.quantity} × ${
+                item.unit
+              }: ${formatPrice(getRangeItemSubtotal(item))}`
+          )
+          .join("\n")
+      : booking.details.trim();
+    const price = isRangePackage
+      ? packageTotal + additionalAmount
+      : Number(booking.price);
+
     if (
-      !booking.bookName ||
-      !booking.details ||
-      !booking.price ||
+  !booking.customerType ||
+  !bookName ||
+  !details ||
+  (!isRangePackage && booking.price === "") ||
+      !Number.isFinite(price) ||
+      price < 0 ||
+  (isRangePackage &&
+    (!Number.isFinite(additionalAmount) || additionalAmount < 0)) ||
       !booking.bookDate ||
       !booking.bookTime
     ) {
-      setError("Please complete all fields.");
-      return;
-    }
+  setError("Please complete all required booking fields.");
+  return;
+}
 
-    // Check if another booking already uses the slot
-    const alreadyBooked = isTimeBooked(
-      booking.bookDate,
-      booking.bookTime
-    );
-
-    if (alreadyBooked) {
-
-      setError(
-        "This date and time slot is already booked. Please select another time."
-      );
-
-      return;
-    }
+if (
+  booking.customerType === "member" &&
+  (
+    !booking.memberName.trim() ||
+    !booking.memberType ||
+    !booking.memberNumber.trim() ||
+    !booking.expirationDate ||
+    !booking.phoneNumber.trim()
+  )
+) {
+  setError("Please complete all Sureshots member information.");
+  return;
+}
 
     try {
 
       setSaving(true);
+
+      const bookingData = {
+        customerType: booking.customerType,
+        bookName,
+        details,
+        price,
+        additionalAmount,
+        packageCategory: isRangePackage ? "Range Package" : "",
+        packageItems: isRangePackage
+          ? rangePackageItems.map((item) => ({
+              category: item.category,
+              name: item.name,
+              unitPrice: item.unitPrice,
+              unit: item.unit,
+              quantity: item.quantity,
+              pricing: item.pricing || "",
+              subtotal: getRangeItemSubtotal(item),
+            }))
+          : [],
+        bookDate: booking.bookDate,
+        bookTime: booking.bookTime,
+        memberName:
+          booking.customerType === "member" ? booking.memberName.trim() : "",
+        memberType:
+          booking.customerType === "member" ? booking.memberType : "",
+        memberNumber:
+          booking.customerType === "member" ? booking.memberNumber.trim() : "",
+        expirationDate:
+          booking.customerType === "member" ? booking.expirationDate : "",
+        phoneNumber:
+          booking.customerType === "member" ? booking.phoneNumber.trim() : "",
+      };
 
       // =================================
       // EDIT EXISTING BOOKING
@@ -243,25 +413,8 @@ const isTimeBooked = (date, time) => {
         );
 
         await updateDoc(bookingRef, {
-
-          bookName: booking.bookName,
-
-          details: booking.details,
-
-          price: Number(booking.price),
-
-          bookDate: booking.bookDate,
-
-          bookTime: booking.bookTime,
-
-           memberName: booking.memberName,
-  memberType: booking.memberType,
-  memberNumber: booking.memberNumber,
-  expirationDate: booking.expirationDate,
-  phoneNumber: booking.phoneNumber,
-
+          ...bookingData,
           updatedAt: serverTimestamp(),
-
         });
 
       }
@@ -303,24 +456,8 @@ const isTimeBooked = (date, time) => {
         await addDoc(
           collection(db, "bookings"),
           {
-            bookName: booking.bookName,
-
-            details: booking.details,
-
-            price: Number(booking.price),
-
-            bookDate: booking.bookDate,
-
-            bookTime: booking.bookTime,
-
-             memberName: booking.memberName,
-  memberType: booking.memberType,
-  memberNumber: booking.memberNumber,
-  expirationDate: booking.expirationDate,
-  phoneNumber: booking.phoneNumber,
-
+            ...bookingData,
             status: "Booked",
-
             createdAt: serverTimestamp(),
           }
         );
@@ -329,6 +466,7 @@ const isTimeBooked = (date, time) => {
       // Reset form
 
       setBooking({
+        customerType: "",
         bookName: "",
         details: "",
         price: "",
@@ -341,6 +479,7 @@ const isTimeBooked = (date, time) => {
   expirationDate: "",
   phoneNumber: "",
       });
+      setRangePackageItems([]);
 
       setEditingBookingId(null);
 
@@ -478,8 +617,13 @@ const handleCancelBooking = async (id) => {
   // ================================
 
   const formatPrice = (price) => {
+    const numericPrice = Number(price);
 
-    return `₱${Number(price).toLocaleString(
+    if (!Number.isFinite(numericPrice)) {
+      return "—";
+    }
+
+    return `₱${numericPrice.toLocaleString(
       "en-PH",
       {
         minimumFractionDigits: 2,
@@ -488,12 +632,113 @@ const handleCancelBooking = async (id) => {
     )}`;
   };
 
+  const selectedRangeOptions =
+    RANGE_PACKAGE_CATALOG[rangePackageCategory];
+  const selectedRangePackageOption =
+    selectedRangeOptions.find(
+      (item) => item.name === rangePackageOption
+    ) || selectedRangeOptions[0];
+
+  const handleRangePackageCategoryChange = (event) => {
+    const nextCategory = event.target.value;
+    setRangePackageCategory(nextCategory);
+    setRangePackageOption(RANGE_PACKAGE_CATALOG[nextCategory][0].name);
+  };
+
+  const handleAddRangePackageItem = () => {
+    const quantity = Number(rangePackageQuantity);
+
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      setError("Enter a whole number quantity of at least 1.");
+      return;
+    }
+
+    if (
+      selectedRangePackageOption.pricing === "corkage-per-round" &&
+      quantity > 100
+    ) {
+      setError("Choose the 101+ rounds flat-rate option for quantities above 100.");
+      return;
+    }
+
+    if (
+      selectedRangePackageOption.pricing === "corkage-flat" &&
+      quantity < 101
+    ) {
+      setError("The flat-rate corkage option applies to 101 rounds or more.");
+      return;
+    }
+
+    if (
+      selectedRangePackageOption.pricing?.startsWith("corkage") &&
+      rangePackageItems.some((item) =>
+        item.pricing?.startsWith("corkage")
+      )
+    ) {
+      setError("Only one ammunition corkage option can be added to a booking.");
+      return;
+    }
+
+    setRangePackageItems((items) => [
+      ...items,
+      {
+        ...selectedRangePackageOption,
+        category: rangePackageCategory,
+        quantity,
+      },
+    ]);
+    setRangePackageQuantity(1);
+    setError("");
+  };
+
+  const rangePackageTotal = rangePackageItems.reduce(
+    (total, item) => total + getRangeItemSubtotal(item),
+    0
+  );
+  const hasRangePackageItems = rangePackageItems.length > 0;
+  const rangePackageDetails = rangePackageItems
+    .map(
+      (item) =>
+        `${item.category}: ${item.name} — ${item.quantity} × ${
+          item.unit
+        }: ${formatPrice(getRangeItemSubtotal(item))}`
+    )
+    .join("\n");
+
+  const getBookingDetails = (bookingRecord) => {
+    if (bookingRecord.details?.trim()) {
+      return bookingRecord.details;
+    }
+
+    if (
+      Array.isArray(bookingRecord.packageItems) &&
+      bookingRecord.packageItems.length > 0
+    ) {
+      return bookingRecord.packageItems
+        .map((item) => {
+          const subtotal = item.subtotal ?? getRangeItemSubtotal(item);
+          return `${item.category || "Range Package"}: ${item.name} — ${
+            item.quantity
+          } × ${item.unit}: ${formatPrice(subtotal)}`;
+        })
+        .join("\n");
+    }
+
+    return "-";
+  };
+
   const activeBookings = bookings.filter(
     (item) => item.status === "Booked"
   );
   const normalizedSearch = bookingSearch.trim().toLocaleLowerCase();
   const filteredBookings = activeBookings.filter((item) =>
-    (item.bookName || "").toLocaleLowerCase().includes(normalizedSearch)
+    [
+      item.bookName,
+      ...(Array.isArray(item.packageItems)
+        ? item.packageItems.map((packageItem) => packageItem.name)
+        : []),
+    ]
+      .some((name) => (name || "").toLocaleLowerCase().includes(normalizedSearch))
   );
 
 
@@ -642,8 +887,8 @@ const handleCancelBooking = async (id) => {
 
                     </td>
 
-                    <td>
-                      {item.details}
+                    <td className="booking-package-details">
+                      {getBookingDetails(item)}
                     </td>
 
                     <td>
@@ -743,11 +988,7 @@ const handleCancelBooking = async (id) => {
             <button
     type="button"
     role="menuitem"
-    onClick={() => {
-      setViewingBooking(selectedBooking);
-      setOpenMenuId(null);
-      setMenuPosition(null);
-    }}
+    onClick={() => handleViewBooking(selectedBooking)}
   >
     View
   </button>
@@ -831,6 +1072,129 @@ const handleCancelBooking = async (id) => {
 
             <form onSubmit={handleSubmit}>
 
+              {/* CUSTOMER TYPE */}
+<div className="form-group">
+  <label htmlFor="customerType">Customer Type</label>
+
+  <select
+    id="customerType"
+    name="customerType"
+    value={booking.customerType}
+    onChange={handleChange}
+    required
+  >
+    <option value="">Select Customer Type</option>
+    <option value="regular">Regular Customer</option>
+    <option value="member">Sureshots Member</option>
+  </select>
+</div>
+
+
+              <section className="range-package-builder">
+                <div className="range-package-heading">
+                  <h3>Range Package Items</h3>
+                  <p>
+                    Add one or more range fees or ammunition items. The booking
+                    total updates automatically.
+                  </p>
+                </div>
+
+                <div className="range-package-controls">
+                  <div className="form-group">
+                    <label htmlFor="rangePackageCategory">Category</label>
+                    <select
+                      id="rangePackageCategory"
+                      value={rangePackageCategory}
+                      onChange={handleRangePackageCategoryChange}
+                    >
+                      {Object.keys(RANGE_PACKAGE_CATALOG).map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="rangePackageOption">Package item</label>
+                    <select
+                      id="rangePackageOption"
+                      value={selectedRangePackageOption.name}
+                      onChange={(event) =>
+                        setRangePackageOption(event.target.value)
+                      }
+                    >
+                      {selectedRangeOptions.map((item) => (
+                        <option key={item.name} value={item.name}>
+                          {item.name} — {formatPrice(item.unitPrice)} /{" "}
+                          {item.unit}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group range-package-quantity">
+                    <label htmlFor="rangePackageQuantity">Quantity</label>
+                    <input
+                      id="rangePackageQuantity"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={rangePackageQuantity}
+                      onChange={(event) =>
+                        setRangePackageQuantity(event.target.value)
+                      }
+                    />
+                  </div>
+
+                  <button
+                    className="add-package-item-btn"
+                    type="button"
+                    onClick={handleAddRangePackageItem}
+                  >
+                    Add item
+                  </button>
+                </div>
+
+                {rangePackageItems.length > 0 && (
+                  <div className="range-package-items">
+                    {rangePackageItems.map((item, index) => (
+                      <div
+                        className="range-package-item"
+                        key={`${item.name}-${index}`}
+                      >
+                        <div>
+                          <strong>{item.name}</strong>
+                          <span>
+                            {item.category} · {item.quantity} × {item.unit}
+                          </span>
+                        </div>
+                        <strong>{formatPrice(getRangeItemSubtotal(item))}</strong>
+                        <button
+                          type="button"
+                          aria-label={`Remove ${item.name}`}
+                          onClick={() => handleRemoveRangePackageItem(index)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                    <div className="range-package-total">
+                      <span>Package items subtotal</span>
+                      <strong>{formatPrice(rangePackageTotal)}</strong>
+                    </div>
+                    <div className="range-package-total">
+                      <span>Total amount</span>
+                      <strong>
+                        {formatPrice(
+                          rangePackageTotal + Number(booking.price || 0)
+                        )}
+                      </strong>
+                    </div>
+                  </div>
+                )}
+              </section>
+
 
               {/* BOOK NAME */}
 
@@ -844,8 +1208,9 @@ const handleCancelBooking = async (id) => {
                   type="text"
                   name="bookName"
                   placeholder="Enter book or package name"
-                  value={booking.bookName}
+                  value={hasRangePackageItems ? "Range Package" : booking.bookName}
                   onChange={handleChange}
+                  readOnly={hasRangePackageItems}
                   required
                 />
 
@@ -863,8 +1228,11 @@ const handleCancelBooking = async (id) => {
                 <textarea
                   name="details"
                   placeholder="Enter booking details"
-                  value={booking.details}
+                  value={
+                    hasRangePackageItems ? rangePackageDetails : booking.details
+                  }
                   onChange={handleChange}
+                  readOnly={hasRangePackageItems}
                   rows="4"
                   required
                 />
@@ -877,18 +1245,22 @@ const handleCancelBooking = async (id) => {
               <div className="form-group">
 
                 <label>
-                  Price
+                  {hasRangePackageItems ? "Additional Amount" : "Booking Price"}
                 </label>
 
                 <input
                   type="number"
                   name="price"
-                  placeholder="Enter price"
+                  placeholder={
+                    hasRangePackageItems
+                      ? "Enter additional amount (optional)"
+                      : "Enter booking price"
+                  }
                   min="0"
                   step="0.01"
                   value={booking.price}
                   onChange={handleChange}
-                  required
+                  required={!hasRangePackageItems}
                 />
 
               </div>
@@ -897,7 +1269,8 @@ const handleCancelBooking = async (id) => {
     SURESHOTS MEMBER
 ========================= */}
 
-<div className="member-section">
+{booking.customerType === "member" && (
+  <div className="member-section">
   <h3>Sureshots Member Information</h3>
 
   <div className="form-group">
@@ -978,6 +1351,7 @@ const handleCancelBooking = async (id) => {
 
   </div>
 </div>
+)}
 
 
               {/* DATE */}
@@ -1124,6 +1498,14 @@ const handleCancelBooking = async (id) => {
       </div>
 
       {/* BOOKING INFORMATION */}
+      {loadingBookingView && (
+        <p role="status">Loading booking details from the database…</p>
+      )}
+      {bookingViewError && (
+        <p role="alert" className="booking-error">
+          {bookingViewError}
+        </p>
+      )}
 
       <div className="view-section">
         <h3>Booking Details</h3>
@@ -1134,6 +1516,17 @@ const handleCancelBooking = async (id) => {
             <span>Book / Package</span>
             <strong>
               {viewingBooking.bookName || "-"}
+            </strong>
+          </div>
+
+          <div className="view-item">
+            <span>Customer Type</span>
+            <strong>
+              {viewingBooking.customerType === "member"
+                ? "Sureshots Member"
+                : viewingBooking.customerType === "regular"
+                ? "Regular Customer"
+                : "-"}
             </strong>
           </div>
 
@@ -1177,14 +1570,59 @@ const handleCancelBooking = async (id) => {
 
         <div className="view-item full-width">
           <span>Details</span>
-          <p>
-            {viewingBooking.details || "-"}
+          <p className="booking-package-details">
+            {getBookingDetails(viewingBooking)}
           </p>
         </div>
       </div>
 
-      {/* SURESHOTS MEMBER */}
+      {Array.isArray(viewingBooking.packageItems) &&
+        viewingBooking.packageItems.length > 0 && (
+          <div className="view-section">
+            <h3>Range Package Items</h3>
+            <div className="view-package-items">
+              {viewingBooking.packageItems.map((item, index) => {
+                const subtotal =
+                  item.subtotal ?? getRangeItemSubtotal(item);
 
+                return (
+                  <div
+                    className="view-package-item"
+                    key={`${item.name}-${index}`}
+                  >
+                    <div className="view-package-item-info">
+                      <strong>{item.name}</strong>
+                      <span>
+                        {item.category || "Range Package"} · {item.quantity} ×{" "}
+                        {item.unit}
+                        {" · "}
+                        {item.pricing === "corkage-flat"
+                          ? "₱1,000 flat rate"
+                          : `${formatPrice(item.unitPrice)} per ${item.unit}`}
+                      </span>
+                    </div>
+                    <strong>{formatPrice(subtotal)}</strong>
+                  </div>
+                );
+              })}
+              {Number(viewingBooking.additionalAmount) > 0 && (
+                <div className="view-package-total">
+                  <span>Additional amount</span>
+                  <strong>
+                    {formatPrice(viewingBooking.additionalAmount)}
+                  </strong>
+                </div>
+              )}
+              <div className="view-package-total">
+                <span>Total amount</span>
+                <strong>{formatPrice(viewingBooking.price)}</strong>
+              </div>
+            </div>
+          </div>
+        )}
+
+      {/* SURESHOTS MEMBER */}
+{viewingBooking.customerType === "member" && (
       <div className="view-section">
         <h3>Sureshots Member Information</h3>
 
@@ -1227,6 +1665,7 @@ const handleCancelBooking = async (id) => {
 
         </div>
       </div>
+      )}
 
       {/* CLOSE */}
 
