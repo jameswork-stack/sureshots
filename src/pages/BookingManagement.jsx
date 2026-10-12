@@ -116,7 +116,7 @@ const [booking, setBooking] = useState({
 });
   const [rangePackageCategories, setRangePackageCategories] = useState([]);
 const [selectedRangePackageItems, setSelectedRangePackageItems] = useState({});
-const [rangePackageItemQuantities, setRangePackageItemQuantities] = useState({});
+  const [rangePackageItemQuantities, setRangePackageItemQuantities] = useState({});
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -461,17 +461,7 @@ const isTimeBooked = (date, time) => {
     const isRangePackage = selectedPackageContents.length > 0;
     const bookName = booking.bookName.trim();
     const details = isRangePackage
-      ? selectedPackageContents
-          .map(
-            ({ category, items }) =>
-              `${RANGE_PACKAGE_CATEGORY_LABELS[category]}:\n${items
-                .map(
-                  (item) =>
-                    `- ${item.name}: ${getRangePackageItemDetails(item, category)}`
-                )
-                .join("\n")}`
-          )
-          .join("\n\n")
+      ? getRangePackageDetails(selectedPackageContents)
       : booking.details.trim();
     const price = Number(booking.price);
 
@@ -784,23 +774,42 @@ const handleCancelBooking = async (id) => {
         : "Quantity not recorded"
       : getRangePackageItemRate(item);
 
+  const getRangePackageItemsTotal = (contents) =>
+    contents.reduce(
+      (total, { items }) =>
+        total +
+        items.reduce((categoryTotal, item) => {
+          const quantity =
+            "quantity" in item ? Number(item.quantity) || 0 : 1;
+          return categoryTotal + Number(item.unitPrice) * quantity;
+        }, 0),
+      0
+    );
+
+  const getRangePackageDetails = (contents) =>
+    `${contents
+      .map(
+        ({ category, items }) =>
+          `${RANGE_PACKAGE_CATEGORY_LABELS[category] || category}:\n${items
+            .map(
+              (item) =>
+                `- ${item.name}: ${getRangePackageItemDetails(item, category)}`
+            )
+            .join("\n")}`
+      )
+      .join("\n\n")}\n\nSelected Items Total (informational): ${formatPrice(
+      getRangePackageItemsTotal(contents)
+    )}`;
+
   const hasRangePackageCategories = rangePackageCategories.length > 0;
   const selectedRangePackageContents = getRangePackageContents(
     rangePackageCategories,
     selectedRangePackageItems,
     rangePackageItemQuantities
   );
-  const rangePackageDetails = selectedRangePackageContents
-    .map(
-      ({ category, items }) =>
-        `${RANGE_PACKAGE_CATEGORY_LABELS[category]}:\n${items
-          .map(
-            (item) =>
-              `- ${item.name}: ${getRangePackageItemDetails(item, category)}`
-          )
-          .join("\n")}`
-    )
-    .join("\n\n");
+  const rangePackageDetails = selectedRangePackageContents.length
+    ? getRangePackageDetails(selectedRangePackageContents)
+    : "";
 
   const getBookingDetails = (bookingRecord) => {
     if (bookingRecord.details?.trim()) {
@@ -811,17 +820,7 @@ const handleCancelBooking = async (id) => {
       Array.isArray(bookingRecord.packageContents) &&
       bookingRecord.packageContents.length > 0
     ) {
-      return bookingRecord.packageContents
-        .map(
-          ({ category, items }) =>
-            `${RANGE_PACKAGE_CATEGORY_LABELS[category] || category}:\n${items
-              .map(
-                (item) =>
-                  `- ${item.name}: ${getRangePackageItemDetails(item, category)}`
-              )
-              .join("\n")}`
-        )
-        .join("\n\n");
+      return getRangePackageDetails(bookingRecord.packageContents);
     }
 
     if (
@@ -889,8 +888,6 @@ const handleCancelBooking = async (id) => {
         </button>
 
       </div>
-
-
       {/* =========================
           BOOKING LIST
       ========================== */}
@@ -1322,6 +1319,31 @@ const handleCancelBooking = async (id) => {
 
               </div>
 
+              {/* PRICE */}
+
+              <div className="form-group">
+
+                <label>
+                  {hasRangePackageCategories ? "Package Price" : "Package Price"}
+                </label>
+
+                <input
+                  type="number"
+                  name="price"
+                  placeholder={
+                    hasRangePackageCategories
+                      ? "Enter the package price"
+                      : "Enter booking price"
+                  }
+                  min="0"
+                  step="0.01"
+                  value={booking.price}
+                  onChange={handleChange}
+                  required
+                />
+
+              </div>
+
 
               {/* DETAILS */}
 
@@ -1340,32 +1362,6 @@ const handleCancelBooking = async (id) => {
                   onChange={handleChange}
                   readOnly={hasRangePackageCategories}
                   rows="4"
-                  required
-                />
-
-              </div>
-
-
-              {/* PRICE */}
-
-              <div className="form-group">
-
-                <label>
-                  {hasRangePackageCategories ? "Package Price" : "Booking Price"}
-                </label>
-
-                <input
-                  type="number"
-                  name="price"
-                  placeholder={
-                    hasRangePackageCategories
-                      ? "Enter the package price"
-                      : "Enter booking price"
-                  }
-                  min="0"
-                  step="0.01"
-                  value={booking.price}
-                  onChange={handleChange}
                   required
                 />
 
@@ -1731,6 +1727,17 @@ const handleCancelBooking = async (id) => {
                 ))}
               </div>
             )}
+            {Array.isArray(viewingBooking.packageContents) &&
+              viewingBooking.packageContents.length > 0 && (
+                <div className="view-package-total">
+                  <span>Selected Items Total (informational)</span>
+                  <strong>
+                    {formatPrice(
+                      getRangePackageItemsTotal(viewingBooking.packageContents)
+                    )}
+                  </strong>
+                </div>
+              )}
           </div>
         )}
 
@@ -1856,6 +1863,12 @@ const handleCancelBooking = async (id) => {
                   </ul>
                 </div>
               ))}
+              <p className="booking-print-package-total">
+                Selected Items Total (informational):{" "}
+                {formatPrice(
+                  getRangePackageItemsTotal(printingBooking.packageContents)
+                )}
+              </p>
             </section>
           ) : Array.isArray(printingBooking.packageItems) &&
             printingBooking.packageItems.length > 0 ? (

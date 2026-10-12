@@ -458,6 +458,13 @@
   font-size: 13px;
 }
 
+.booking-print-package-total {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid #d1d5db;
+  font-weight: 700;
+}
+
 /* Buttons */
 
 .form-actions {
