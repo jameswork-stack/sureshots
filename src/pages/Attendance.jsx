@@ -633,10 +633,10 @@ export default function Attendance() {
     }
 
     // =========================
-    // ABSENT
+    // ABSENT / REST DAY
     // =========================
 
-    if (action === "Absent") {
+    if (action === "Absent" || action === "Rest Day") {
       const existingRecord =
         getAttendanceForMemberDate(
           member.id,
@@ -651,9 +651,9 @@ export default function Attendance() {
       }
 
       const confirmed = window.confirm(
-        `Mark ${member.memberName} as absent on ${formatDate(
-          date
-        )}?`
+        action === "Absent"
+          ? `Mark ${member.memberName} as absent on ${formatDate(date)}?`
+          : `Mark ${member.memberName} as Rest Day on ${formatDate(date)}?`
       );
 
       if (!confirmed) {
@@ -672,7 +672,7 @@ export default function Attendance() {
             date: date,
             timeIn: "",
             timeOut: "",
-            status: "Absent",
+            status: action,
             createdAt: serverTimestamp(),
           }
         );
@@ -681,15 +681,21 @@ export default function Attendance() {
 
         await fetchAttendance();
 
-        alert("Member marked as absent.");
+        alert(
+          action === "Absent"
+            ? "Member marked as absent."
+            : "Member marked as Rest Day."
+        );
       } catch (error) {
         console.error(
-          "Error recording absent:",
+          `Error recording ${action}:`,
           error
         );
 
         alert(
-          "Failed to mark member as absent."
+          action === "Absent"
+            ? "Failed to mark member as absent."
+            : "Failed to mark member as Rest Day."
         );
       } finally {
         setSaving(false);
@@ -902,6 +908,18 @@ export default function Attendance() {
                     Absent
                   </button>
 
+                  <button
+                    className="rest-day-btn"
+                    onClick={() =>
+                      openAttendanceForm(
+                        member,
+                        "Rest Day"
+                      )
+                    }
+                  >
+                    Rest Day
+                  </button>
+
                 </div>
 
               </div>
@@ -996,6 +1014,9 @@ export default function Attendance() {
                             record.status ===
                             "Absent"
                               ? "absent"
+                              : record.status ===
+                                "Rest Day"
+                              ? "rest-day"
                               : record.status ===
                                 "Completed"
                               ? "completed"
@@ -1256,8 +1277,8 @@ export default function Attendance() {
 
                 </div>
 
-                {attendanceForm.action !==
-                  "Absent" && (
+                {attendanceForm.action !== "Absent" &&
+                  attendanceForm.action !== "Rest Day" && (
 
                   <div className="form-group">
 
@@ -1293,18 +1314,25 @@ export default function Attendance() {
 
                 )}
 
-                {attendanceForm.action ===
-                  "Absent" && (
+                {(attendanceForm.action === "Absent" ||
+                  attendanceForm.action === "Rest Day") && (
 
-                  <div className="absent-notice">
+                  <div
+                    className={
+                      attendanceForm.action === "Absent"
+                        ? "absent-notice"
+                        : "rest-day-notice"
+                    }
+                  >
 
                     <strong>
-                      Mark as Absent
+                      {attendanceForm.action === "Absent"
+                        ? "Mark as Absent"
+                        : "Mark as Rest Day"}
                     </strong>
 
                     <p>
-                      No Time In or Time Out
-                      is required.
+                      No Time In or Time Out is required.
                     </p>
 
                   </div>
@@ -1326,18 +1354,20 @@ export default function Attendance() {
                   <button
                     type="submit"
                     className={
-                      attendanceForm.action ===
-                      "Absent"
+                      attendanceForm.action === "Absent"
                         ? "save-absent-btn"
+                        : attendanceForm.action === "Rest Day"
+                        ? "save-rest-day-btn"
                         : "save-btn"
                     }
                     disabled={saving}
                   >
                     {saving
                       ? "Saving..."
-                      : attendanceForm.action ===
-                        "Absent"
+                      : attendanceForm.action === "Absent"
                       ? "Mark Absent"
+                      : attendanceForm.action === "Rest Day"
+                      ? "Mark Rest Day"
                       : `Save ${attendanceForm.action}`}
                   </button>
 

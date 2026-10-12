@@ -429,6 +429,19 @@
   font-size: 13px;
 }
 
+.range-package-item-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+}
+
+.range-package-item-option input {
+  width: auto;
+  margin: 0;
+  accent-color: #2563eb;
+}
+
 /* Buttons */
 
 .form-actions {

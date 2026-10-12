@@ -168,7 +168,7 @@
 
 .member-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-top: 18px;
 }
@@ -228,6 +228,19 @@
 }
 
 /* ========================================
+   REST DAY
+======================================== */
+
+.rest-day-btn {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+
+.rest-day-btn:hover:not(:disabled) {
+  background: #e9d5ff;
+}
+
+/* ========================================
    ATTENDANCE STATUS
 ======================================== */
 
@@ -252,6 +265,11 @@
 .attendance-status.absent {
   background: #fee2e2;
   color: #b91c1c;
+}
+
+.attendance-status.rest-day {
+  background: #f3e8ff;
+  color: #7e22ce;
 }
 
 /* ========================================
@@ -550,6 +568,38 @@
 
 .save-absent-btn:hover:not(:disabled) {
   background: #b91c1c;
+}
+
+/* ========================================
+   SAVE REST DAY
+======================================== */
+
+.rest-day-notice {
+  background: #faf5ff;
+  border: 1px solid #e9d5ff;
+  border-radius: 9px;
+  padding: 14px;
+  margin-bottom: 18px;
+}
+
+.rest-day-notice strong {
+  color: #7e22ce;
+  font-size: 14px;
+}
+
+.rest-day-notice p {
+  margin: 5px 0 0;
+  color: #6b21a8;
+  font-size: 12px;
+}
+
+.save-rest-day-btn {
+  background: #9333ea;
+  color: white;
+}
+
+.save-rest-day-btn:hover:not(:disabled) {
+  background: #7e22ce;
 }
 
 /* ========================================

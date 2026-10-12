@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import "../styles/bookingHistory.css";
 import { db } from "../firebase";
+import { formatDisplayDate } from "../utils/date";
 import {
   collection,
   getDocs,
@@ -183,7 +184,7 @@ export default function BookingHistory() {
                     </td>
 
                     <td>
-                      {item.bookDate}
+                      {formatDisplayDate(item.bookDate)}
                     </td>
 
                     <td>
@@ -367,7 +368,7 @@ export default function BookingHistory() {
           <div className="history-view-item">
             <span>Booking Date</span>
             <strong>
-              {viewingBooking.bookDate || "-"}
+              {formatDisplayDate(viewingBooking.bookDate)}
             </strong>
           </div>
 
@@ -463,7 +464,7 @@ export default function BookingHistory() {
           <div className="history-view-item">
             <span>Expiration Date</span>
             <strong>
-              {viewingBooking.expirationDate || "-"}
+              {formatDisplayDate(viewingBooking.expirationDate)}
             </strong>
           </div>
 
@@ -517,7 +518,7 @@ export default function BookingHistory() {
                 </div>
                 <div>
                   <dt>Booking Date</dt>
-                  <dd>{printingBooking.bookDate || "-"}</dd>
+                  <dd>{formatDisplayDate(printingBooking.bookDate)}</dd>
                 </div>
                 <div>
                   <dt>Booking Time</dt>
@@ -593,7 +594,7 @@ export default function BookingHistory() {
                   </div>
                   <div>
                     <dt>Expiration Date</dt>
-                    <dd>{printingBooking.expirationDate || "-"}</dd>
+                    <dd>{formatDisplayDate(printingBooking.expirationDate)}</dd>
                   </div>
                   <div>
                     <dt>Phone Number</dt>
