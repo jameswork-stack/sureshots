@@ -49,6 +49,14 @@
   background: #1d4ed8;
 }
 
+.attendance-back-btn {
+  background: #475569;
+}
+
+.attendance-back-btn:hover {
+  background: #334155;
+}
+
 /* ========================================
    SECTIONS
 ======================================== */
@@ -309,6 +317,10 @@
   width: 100%;
   border-collapse: collapse;
   min-width: 850px;
+}
+
+.member-attendance-table {
+  min-width: 620px;
 }
 
 .attendance-table th {

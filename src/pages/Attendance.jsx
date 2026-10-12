@@ -18,6 +18,7 @@ export default function Attendance() {
   const [members, setMembers] = useState([]);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [attendanceMemberFilter, setAttendanceMemberFilter] = useState("");
+  const [viewingMemberAttendance, setViewingMemberAttendance] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -756,6 +757,95 @@ export default function Attendance() {
     }
   };
 
+  const handleViewMemberAttendance = (member) => {
+    setViewingMemberAttendance(member);
+    setOpenMenuId(null);
+  };
+
+  if (viewingMemberAttendance) {
+    const memberRecords = attendanceRecords.filter(
+      (record) => record.memberId === viewingMemberAttendance.id
+    );
+
+    return (
+      <div className="attendance-page">
+        <div className="attendance-header">
+          <div>
+            <h1>{viewingMemberAttendance.memberName}'s Attendance</h1>
+            <p>
+              Member No: {viewingMemberAttendance.memberNumber || "-"} ·{" "}
+              {memberRecords.length} records
+            </p>
+          </div>
+          <button
+            className="add-member-btn attendance-back-btn"
+            onClick={() => setViewingMemberAttendance(null)}
+          >
+            Back to Members
+          </button>
+        </div>
+
+        <div className="attendance-records-section">
+          {loading ? (
+            <div className="attendance-message">
+              Loading attendance records...
+            </div>
+          ) : memberRecords.length === 0 ? (
+            <div className="attendance-message">
+              No attendance records for this member yet.
+            </div>
+          ) : (
+            <div className="attendance-table-container">
+              <table className="attendance-table member-attendance-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Time In</th>
+                    <th>Time Out</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {memberRecords.map((record) => (
+                    <tr key={record.id}>
+                      <td>{formatDate(record.date)}</td>
+                      <td>{record.timeIn || "-"}</td>
+                      <td>{record.timeOut || "-"}</td>
+                      <td>
+                        <span
+                          className={`attendance-status ${
+                            record.status === "Absent"
+                              ? "absent"
+                              : record.status === "Rest Day"
+                              ? "rest-day"
+                              : record.status === "Completed"
+                              ? "completed"
+                              : "present"
+                          }`}
+                        >
+                          {record.status}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          className="delete-attendance-btn"
+                          onClick={() => handleDeleteAttendance(record.id)}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="attendance-page">
 
@@ -834,6 +924,14 @@ export default function Attendance() {
 
                   {openMenuId === member.id && (
                     <div className="member-dropdown">
+
+                      <button
+                        onClick={() =>
+                          handleViewMemberAttendance(member)
+                        }
+                      >
+                        View
+                      </button>
 
                       <button
                         onClick={() =>

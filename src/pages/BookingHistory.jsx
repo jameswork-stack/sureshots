@@ -108,6 +108,15 @@ export default function BookingHistory() {
       ? `${formatPrice(item.unitPrice)} flat rate`
       : `${formatPrice(item.unitPrice)} per ${item.unit}`;
 
+  const getPackageItemDetails = (item, category) =>
+    category === "Ammunition Prices"
+      ? item.quantity
+        ? item.unit === "round"
+          ? `${item.quantity} ${item.quantity === 1 ? "round" : "rounds"}`
+          : `${item.quantity} × ${item.unit}`
+        : "Quantity not recorded"
+      : getPackageItemRate(item);
+
   const selectedBooking = bookings.find((booking) => booking.id === openMenuId);
 
   const handleDeleteBooking = async (id) => {
@@ -407,7 +416,9 @@ export default function BookingHistory() {
                   {items.map((item) => (
                     <li key={item.name}>
                       <span>{item.name}</span>
-                      <strong>{getPackageItemRate(item)}</strong>
+                      <strong>
+                        {getPackageItemDetails(item, category)}
+                      </strong>
                     </li>
                   ))}
                 </ul>
@@ -544,7 +555,9 @@ export default function BookingHistory() {
                       {items.map((item) => (
                         <li key={item.name}>
                           <span>{item.name}</span>
-                          <strong>{getPackageItemRate(item)}</strong>
+                          <strong>
+                            {getPackageItemDetails(item, category)}
+                          </strong>
                         </li>
                       ))}
                     </ul>

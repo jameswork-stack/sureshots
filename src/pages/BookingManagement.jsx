@@ -41,13 +41,13 @@ const RANGE_PACKAGE_CATALOG = {
   ],
   "Ammunition Prices": [
     { name: ".22 High Velocity (50s)", unitPrice: 1000, unit: "box of 50" },
-    { name: ".38 Special", unitPrice: 38, unit: "round" },
+    { name: ".38 Special", unitPrice: 38, unit: "piece" },
     { name: "9MM FMJ", unitPrice: 35, unit: "round" },
-    { name: "12 Gauge Birdshots", unitPrice: 60, unit: "round" },
-    { name: "5.56", unitPrice: 75, unit: "round" },
-    { name: "9m.m Teflon", unitPrice: 20, unit: "round" },
-    { name: "40 cal teflon", unitPrice: 20, unit: "round" },
-    { name: "45 acp teflon", unitPrice: 28, unit: "round" },
+    { name: "12 Gauge Birdshots", unitPrice: 60, unit: "piece" },
+    { name: "5.56", unitPrice: 75, unit: "piece" },
+    { name: "9m.m Teflon", unitPrice: 20, unit: "piece" },
+    { name: "40 cal teflon", unitPrice: 20, unit: "piece" },
+    { name: "45 acp teflon", unitPrice: 28, unit: "piece" },
   ],
 };
 
@@ -57,7 +57,7 @@ const RANGE_PACKAGE_CATEGORY_LABELS = {
   "Ammunition Prices": "Ammunition Fee",
 };
 
-const getRangePackageContents = (categories, selectedItems) =>
+const getRangePackageContents = (categories, selectedItems, quantities) =>
   categories
     .filter((category) => RANGE_PACKAGE_CATALOG[category])
     .map((category) => ({
@@ -69,6 +69,9 @@ const getRangePackageContents = (categories, selectedItems) =>
           unitPrice: item.unitPrice,
           unit: item.unit,
           pricing: item.pricing || "",
+          ...(category === "Ammunition Prices"
+            ? { quantity: Number(quantities[category]?.[item.name]) || 0 }
+            : {}),
         })),
     }))
     .filter(({ items }) => items.length > 0);
@@ -106,6 +109,7 @@ const [booking, setBooking] = useState({
 });
   const [rangePackageCategories, setRangePackageCategories] = useState([]);
 const [selectedRangePackageItems, setSelectedRangePackageItems] = useState({});
+const [rangePackageItemQuantities, setRangePackageItemQuantities] = useState({});
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -221,15 +225,9 @@ const isTimeBooked = (date, time) => {
   };
 
   const handleRangePackageCategoryChange = (category) => {
-    const categoryItems = RANGE_PACKAGE_CATALOG[category].map(
-      (item) => item.name
-    );
-    const selectedItems = selectedRangePackageItems[category] || [];
-    const allItemsSelected = categoryItems.every((name) =>
-      selectedItems.includes(name)
-    );
+    const isCategorySelected = rangePackageCategories.includes(category);
 
-    if (allItemsSelected) {
+    if (isCategorySelected) {
       setRangePackageCategories((categories) =>
         categories.filter((selectedCategory) => selectedCategory !== category)
       );
@@ -237,19 +235,20 @@ const isTimeBooked = (date, time) => {
         ...items,
         [category]: [],
       }));
+      setRangePackageItemQuantities((quantities) => ({
+        ...quantities,
+        [category]: {},
+      }));
     } else {
       setRangePackageCategories((categories) =>
         categories.includes(category) ? categories : [...categories, category]
       );
-      setSelectedRangePackageItems((items) => ({
-        ...items,
-        [category]: categoryItems,
-      }));
     }
     setError("");
   };
 
   const handleRangePackageItemChange = (category, itemName) => {
+    const isSelected = selectedRangePackageItems[category]?.includes(itemName);
     setSelectedRangePackageItems((items) => {
       const categoryItems = items[category] || [];
       const nextCategoryItems = categoryItems.includes(itemName)
@@ -261,6 +260,26 @@ const isTimeBooked = (date, time) => {
         [category]: nextCategoryItems,
       };
     });
+    if (isSelected) {
+      setRangePackageItemQuantities((quantities) => ({
+        ...quantities,
+        [category]: {
+          ...quantities[category],
+          [itemName]: "",
+        },
+      }));
+    }
+    setError("");
+  };
+
+  const handleRangePackageQuantityChange = (itemName, quantity) => {
+    setRangePackageItemQuantities((quantities) => ({
+      ...quantities,
+      "Ammunition Prices": {
+        ...quantities["Ammunition Prices"],
+        [itemName]: quantity,
+      },
+    }));
     setError("");
   };
 
@@ -273,6 +292,7 @@ const isTimeBooked = (date, time) => {
   setEditingBookingId(null);
     setRangePackageCategories([]);
     setSelectedRangePackageItems({});
+    setRangePackageItemQuantities({});
 
     setBooking({
     customerType: "",
@@ -318,10 +338,17 @@ const isTimeBooked = (date, time) => {
       ? item.packageItems
       : [];
     const selectedItems = {};
+    const itemQuantities = {};
 
     if (existingPackageContents.length > 0) {
       existingPackageContents.forEach(({ category, items }) => {
         selectedItems[category] = items.map((packageItem) => packageItem.name);
+        itemQuantities[category] = Object.fromEntries(
+          items.map((packageItem) => [
+            packageItem.name,
+            packageItem.quantity ? String(packageItem.quantity) : "",
+          ])
+        );
       });
     } else if (existingPackageItems.length > 0) {
       existingPackageItems.forEach((packageItem) => {
@@ -329,6 +356,12 @@ const isTimeBooked = (date, time) => {
           ...(selectedItems[packageItem.category] || []),
           packageItem.name,
         ];
+        itemQuantities[packageItem.category] = {
+          ...itemQuantities[packageItem.category],
+          [packageItem.name]: packageItem.quantity
+            ? String(packageItem.quantity)
+            : "",
+        };
       });
     } else {
       existingPackageCategories.forEach((category) => {
@@ -341,6 +374,7 @@ const isTimeBooked = (date, time) => {
     setEditingBookingId(item.id);
     setRangePackageCategories(existingPackageCategories);
     setSelectedRangePackageItems(selectedItems);
+    setRangePackageItemQuantities(itemQuantities);
     setBooking({
       customerType:
         item.customerType ||
@@ -401,8 +435,22 @@ const isTimeBooked = (date, time) => {
 
     const selectedPackageContents = getRangePackageContents(
       rangePackageCategories,
-      selectedRangePackageItems
+      selectedRangePackageItems,
+      rangePackageItemQuantities
     );
+    const ammunitionItems =
+      selectedPackageContents.find(
+        ({ category }) => category === "Ammunition Prices"
+      )?.items || [];
+    if (
+      ammunitionItems.some(
+        (item) => !Number.isInteger(item.quantity) || item.quantity < 1
+      )
+    ) {
+      setError("Enter a whole-number quantity of at least 1 for each selected ammunition item.");
+      return;
+    }
+
     const isRangePackage = selectedPackageContents.length > 0;
     const bookName = booking.bookName.trim();
     const details = isRangePackage
@@ -412,7 +460,7 @@ const isTimeBooked = (date, time) => {
               `${RANGE_PACKAGE_CATEGORY_LABELS[category]}:\n${items
                 .map(
                   (item) =>
-                    `- ${item.name}: ${getRangePackageItemRate(item)}`
+                    `- ${item.name}: ${getRangePackageItemDetails(item, category)}`
                 )
                 .join("\n")}`
           )
@@ -558,6 +606,7 @@ if (
       });
       setRangePackageCategories([]);
       setSelectedRangePackageItems({});
+      setRangePackageItemQuantities({});
 
       setEditingBookingId(null);
 
@@ -715,10 +764,20 @@ const handleCancelBooking = async (id) => {
       ? `${formatPrice(item.unitPrice)} flat rate`
       : `${formatPrice(item.unitPrice)} per ${item.unit}`;
 
+  const getRangePackageItemDetails = (item, category) =>
+    category === "Ammunition Prices"
+      ? item.quantity
+        ? item.unit === "round"
+          ? `${item.quantity} ${item.quantity === 1 ? "round" : "rounds"}`
+          : `${item.quantity} × ${item.unit}`
+        : "Quantity not recorded"
+      : getRangePackageItemRate(item);
+
   const hasRangePackageCategories = rangePackageCategories.length > 0;
   const selectedRangePackageContents = getRangePackageContents(
     rangePackageCategories,
-    selectedRangePackageItems
+    selectedRangePackageItems,
+    rangePackageItemQuantities
   );
   const rangePackageDetails = selectedRangePackageContents
     .map(
@@ -726,7 +785,7 @@ const handleCancelBooking = async (id) => {
         `${RANGE_PACKAGE_CATEGORY_LABELS[category]}:\n${items
           .map(
             (item) =>
-              `- ${item.name}: ${getRangePackageItemRate(item)}`
+              `- ${item.name}: ${getRangePackageItemDetails(item, category)}`
           )
           .join("\n")}`
     )
@@ -747,7 +806,7 @@ const handleCancelBooking = async (id) => {
             `${RANGE_PACKAGE_CATEGORY_LABELS[category] || category}:\n${items
               .map(
                 (item) =>
-                  `- ${item.name}: ${getRangePackageItemRate(item)}`
+                  `- ${item.name}: ${getRangePackageItemDetails(item, category)}`
               )
               .join("\n")}`
         )
@@ -1144,8 +1203,8 @@ const handleCancelBooking = async (id) => {
                 <div className="range-package-heading">
                   <h3>Range Package</h3>
                   <p>
-                    Select a section to include all its items, then check or
-                    uncheck individual items. Enter the booking price separately.
+                    Select a section to show its catalog, then check the items
+                    to include. Enter the booking price separately.
                   </p>
                 </div>
 
@@ -1161,11 +1220,7 @@ const handleCancelBooking = async (id) => {
                     >
                       <input
                         type="checkbox"
-                        checked={RANGE_PACKAGE_CATALOG[category].every((item) =>
-                          selectedRangePackageItems[category]?.includes(
-                            item.name
-                          )
-                        )}
+                        checked={rangePackageCategories.includes(category)}
                         onChange={() =>
                           handleRangePackageCategoryChange(category)
                         }
@@ -1201,6 +1256,31 @@ const handleCancelBooking = async (id) => {
                           <strong>
                             {getRangePackageItemRate(item)}
                           </strong>
+                          {category === "Ammunition Prices" &&
+                            selectedRangePackageItems[category]?.includes(
+                              item.name
+                            ) && (
+                              <label className="range-package-quantity">
+                                Quantity
+                                <input
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  value={
+                                    rangePackageItemQuantities[category]?.[
+                                      item.name
+                                    ] || ""
+                                  }
+                                  onChange={(event) =>
+                                    handleRangePackageQuantityChange(
+                                      item.name,
+                                      event.target.value
+                                    )
+                                  }
+                                  aria-label={`Quantity for ${item.name}`}
+                                />
+                              </label>
+                            )}
                         </li>
                       ))}
                     </ul>
@@ -1609,7 +1689,7 @@ const handleCancelBooking = async (id) => {
                       <li key={item.name}>
                         <span>{item.name}</span>
                         <strong>
-                          {getRangePackageItemRate(item)}
+                          {getRangePackageItemDetails(item, category)}
                         </strong>
                       </li>
                     ))}
@@ -1754,7 +1834,9 @@ const handleCancelBooking = async (id) => {
                     {items.map((item) => (
                       <li key={item.name}>
                         <span>{item.name}</span>
-                        <strong>{getRangePackageItemRate(item)}</strong>
+                        <strong>
+                          {getRangePackageItemDetails(item, category)}
+                        </strong>
                       </li>
                     ))}
                   </ul>
