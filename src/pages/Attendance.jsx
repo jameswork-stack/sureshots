@@ -17,6 +17,7 @@ import {
 export default function Attendance() {
   const [members, setMembers] = useState([]);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [attendanceMemberFilter, setAttendanceMemberFilter] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -425,6 +426,25 @@ export default function Attendance() {
         record.date === date
     );
   };
+
+  const attendanceMembers = [
+    ...new Map(
+      attendanceRecords.map((record) => [
+        record.memberId,
+        {
+          id: record.memberId,
+          name: record.memberName || "Unknown member",
+          number: record.memberNumber || "",
+        },
+      ])
+    ).values(),
+  ].sort((a, b) => a.name.localeCompare(b.name));
+
+  const filteredAttendanceRecords = attendanceMemberFilter
+    ? attendanceRecords.filter(
+        (record) => record.memberId === attendanceMemberFilter
+      )
+    : attendanceRecords;
 
   // =========================
   // SUBMIT ATTENDANCE
@@ -941,13 +961,33 @@ export default function Attendance() {
             <h2>Attendance Records</h2>
 
             <p>
-              View all member attendance records.
+              View and filter member attendance records.
             </p>
           </div>
 
-          <span className="record-count">
-            {attendanceRecords.length} records
-          </span>
+          <div className="attendance-record-controls">
+            <label htmlFor="attendance-member-filter">
+              Filter by member
+            </label>
+            <select
+              id="attendance-member-filter"
+              value={attendanceMemberFilter}
+              onChange={(event) =>
+                setAttendanceMemberFilter(event.target.value)
+              }
+            >
+              <option value="">All members</option>
+              {attendanceMembers.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name}
+                  {member.number ? ` (${member.number})` : ""}
+                </option>
+              ))}
+            </select>
+            <span className="record-count">
+              {filteredAttendanceRecords.length} records
+            </span>
+          </div>
 
         </div>
 
@@ -958,6 +998,10 @@ export default function Attendance() {
         ) : attendanceRecords.length === 0 ? (
           <div className="attendance-message">
             No attendance records yet.
+          </div>
+        ) : filteredAttendanceRecords.length === 0 ? (
+          <div className="attendance-message">
+            No attendance records found for this member.
           </div>
         ) : (
           <div className="attendance-table-container">
@@ -978,7 +1022,7 @@ export default function Attendance() {
 
               <tbody>
 
-                {attendanceRecords.map(
+                {filteredAttendanceRecords.map(
                   (record) => (
 
                     <tr key={record.id}>

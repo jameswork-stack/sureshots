@@ -88,6 +88,30 @@
   font-size: 13px;
 }
 
+.attendance-record-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.attendance-record-controls label {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.attendance-record-controls select {
+  min-width: 190px;
+  padding: 9px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 13px;
+}
+
 /* ========================================
    MEMBER GRID
 ======================================== */
@@ -632,6 +656,11 @@
   .section-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .attendance-record-controls {
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .attendance-modal {
