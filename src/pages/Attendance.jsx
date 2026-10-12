@@ -93,6 +93,10 @@ export default function Attendance() {
         ...item.data(),
       }));
 
+      records.sort((a, b) =>
+        (b.date || "").localeCompare(a.date || "")
+      );
+
       setAttendanceRecords(records);
     } catch (error) {
       console.error(

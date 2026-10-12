@@ -8,6 +8,7 @@ export default function Dashboard() {
   const [completedBookings, setCompletedBookings] = useState(0);
   const [presentMembers, setPresentMembers] = useState(0);
   const [totalSalesRevenue, setTotalSalesRevenue] = useState(0);
+  const [totalRangeSales, setTotalRangeSales] = useState(0);
   const [topPackages, setTopPackages] = useState([]);
   const [salesData, setSalesData] = useState([]);
 
@@ -158,6 +159,7 @@ export default function Dashboard() {
       let activeBookingCount = 0;
       let completedBookingCount = 0;
       let salesRevenue = 0;
+      let rangeSalesRevenue = 0;
 
       bookingsSnapshot.docs.forEach((doc) => {
         const booking = doc.data();
@@ -174,12 +176,52 @@ export default function Dashboard() {
           const price = Number(booking.price) || 0;
 
           salesRevenue += price;
+
+          const packageContents = Array.isArray(booking.packageContents)
+            ? booking.packageContents
+            : [];
+          if (packageContents.length > 0) {
+            packageContents.forEach((category) => {
+              if (!Array.isArray(category.items)) {
+                return;
+              }
+
+              category.items.forEach((item) => {
+                const unitPrice = Number(item.unitPrice);
+                const quantity =
+                  item.quantity == null ? 1 : Number(item.quantity);
+
+                if (
+                  Number.isFinite(unitPrice) &&
+                  Number.isFinite(quantity) &&
+                  quantity >= 0
+                ) {
+                  rangeSalesRevenue += unitPrice * quantity;
+                }
+              });
+            });
+          } else if (Array.isArray(booking.packageItems)) {
+            booking.packageItems.forEach((item) => {
+              const unitPrice = Number(item.unitPrice);
+              const quantity =
+                item.quantity == null ? 1 : Number(item.quantity);
+
+              if (
+                Number.isFinite(unitPrice) &&
+                Number.isFinite(quantity) &&
+                quantity >= 0
+              ) {
+                rangeSalesRevenue += unitPrice * quantity;
+              }
+            });
+          }
         }
       });
 
       setTotalBookings(activeBookingCount);
       setCompletedBookings(completedBookingCount);
       setTotalSalesRevenue(salesRevenue);
+      setTotalRangeSales(rangeSalesRevenue);
 
 
       // ==========================================
@@ -571,7 +613,7 @@ export default function Dashboard() {
           <div className="dashboard-card-content">
 
             <p>
-              Total Sales Revenue
+              Total Firearm Package Sales
             </p>
 
             <h2>
@@ -587,6 +629,28 @@ export default function Dashboard() {
             </span>
 
           </div>
+
+        </div>
+
+          {/* Range Package Sales */}
+
+          <div className="dashboard-card range-sales-card">
+
+            <div className="dashboard-card-content">
+
+              <p>Total Range Sales</p>
+
+              <h2>
+                {loading
+                  ? "..."
+                  : formatCurrency(totalRangeSales)}
+              </h2>
+
+              <span>
+                Selected items from completed bookings
+              </span>
+
+            </div>
 
         </div>
 

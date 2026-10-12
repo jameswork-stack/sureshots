@@ -45,7 +45,7 @@
   display: grid;
 
   grid-template-columns: repeat(
-    4,
+    5,
     minmax(0, 1fr)
   );
 
@@ -896,6 +896,14 @@
 
 .revenue-card::after {
   background: rgba(191, 219, 254, 0.24);
+}
+
+.range-sales-card {
+  border-color: #ddd6fe;
+}
+
+.range-sales-card::after {
+  background: rgba(196, 181, 253, 0.24);
 }
 
 .dashboard-insights {
