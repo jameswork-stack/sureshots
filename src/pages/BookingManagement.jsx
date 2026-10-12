@@ -42,7 +42,7 @@ const RANGE_PACKAGE_CATALOG = {
   "Ammunition Prices": [
     { name: ".22 High Velocity (50s)", unitPrice: 1000, unit: "box of 50" },
     { name: ".38 Special", unitPrice: 38, unit: "piece" },
-    { name: "9MM FMJ", unitPrice: 35, unit: "round" },
+    { name: "9MM FMJ", unitPrice: 35, unit: "piece" },
     { name: "12 Gauge Birdshots", unitPrice: 60, unit: "piece" },
     { name: "5.56", unitPrice: 75, unit: "piece" },
     { name: "9m.m Teflon", unitPrice: 20, unit: "piece" },
@@ -57,6 +57,13 @@ const RANGE_PACKAGE_CATEGORY_LABELS = {
   "Ammunition Prices": "Ammunition Fee",
 };
 
+const RANGE_PACKAGE_QUANTITY_ITEMS = {
+  "Range Fee Rates": ["Range Fee", "Target Board"],
+  "Ammunition Prices": RANGE_PACKAGE_CATALOG["Ammunition Prices"].map(
+    (item) => item.name
+  ),
+};
+
 const getRangePackageContents = (categories, selectedItems, quantities) =>
   categories
     .filter((category) => RANGE_PACKAGE_CATALOG[category])
@@ -69,7 +76,7 @@ const getRangePackageContents = (categories, selectedItems, quantities) =>
           unitPrice: item.unitPrice,
           unit: item.unit,
           pricing: item.pricing || "",
-          ...(category === "Ammunition Prices"
+          ...(RANGE_PACKAGE_QUANTITY_ITEMS[category]?.includes(item.name)
             ? { quantity: Number(quantities[category]?.[item.name]) || 0 }
             : {}),
         })),
@@ -272,11 +279,11 @@ const isTimeBooked = (date, time) => {
     setError("");
   };
 
-  const handleRangePackageQuantityChange = (itemName, quantity) => {
+  const handleRangePackageQuantityChange = (category, itemName, quantity) => {
     setRangePackageItemQuantities((quantities) => ({
       ...quantities,
-      "Ammunition Prices": {
-        ...quantities["Ammunition Prices"],
+      [category]: {
+        ...quantities[category],
         [itemName]: quantity,
       },
     }));
@@ -438,16 +445,16 @@ const isTimeBooked = (date, time) => {
       selectedRangePackageItems,
       rangePackageItemQuantities
     );
-    const ammunitionItems =
-      selectedPackageContents.find(
-        ({ category }) => category === "Ammunition Prices"
-      )?.items || [];
-    if (
-      ammunitionItems.some(
-        (item) => !Number.isInteger(item.quantity) || item.quantity < 1
-      )
-    ) {
-      setError("Enter a whole-number quantity of at least 1 for each selected ammunition item.");
+    const itemsMissingQuantity = selectedPackageContents.some(
+      ({ items }) =>
+        items.some(
+          (item) =>
+            "quantity" in item &&
+            (!Number.isInteger(item.quantity) || item.quantity < 1)
+        )
+    );
+    if (itemsMissingQuantity) {
+      setError("Enter a whole-number quantity of at least 1 for each selected Range Fee, Target Board, and ammunition item.");
       return;
     }
 
@@ -765,10 +772,14 @@ const handleCancelBooking = async (id) => {
       : `${formatPrice(item.unitPrice)} per ${item.unit}`;
 
   const getRangePackageItemDetails = (item, category) =>
-    category === "Ammunition Prices"
+    RANGE_PACKAGE_QUANTITY_ITEMS[category]?.includes(item.name)
       ? item.quantity
-        ? item.unit === "round"
+        ? category === "Range Fee Rates" && item.unit === "booking"
+          ? `${item.quantity} ${item.quantity === 1 ? "booking" : "bookings"}`
+          : item.unit === "round"
           ? `${item.quantity} ${item.quantity === 1 ? "round" : "rounds"}`
+          : item.unit === "board"
+          ? `${item.quantity} ${item.quantity === 1 ? "board" : "boards"}`
           : `${item.quantity} × ${item.unit}`
         : "Quantity not recorded"
       : getRangePackageItemRate(item);
@@ -939,7 +950,7 @@ const handleCancelBooking = async (id) => {
                 <tr>
 
                   <th>
-                    Book / Package
+                    Package Name
                   </th>
 
                   <th>
@@ -1256,7 +1267,9 @@ const handleCancelBooking = async (id) => {
                           <strong>
                             {getRangePackageItemRate(item)}
                           </strong>
-                          {category === "Ammunition Prices" &&
+                          {RANGE_PACKAGE_QUANTITY_ITEMS[category]?.includes(
+                            item.name
+                          ) &&
                             selectedRangePackageItems[category]?.includes(
                               item.name
                             ) && (
@@ -1273,6 +1286,7 @@ const handleCancelBooking = async (id) => {
                                   }
                                   onChange={(event) =>
                                     handleRangePackageQuantityChange(
+                                      category,
                                       item.name,
                                       event.target.value
                                     )
@@ -1294,7 +1308,7 @@ const handleCancelBooking = async (id) => {
               <div className="form-group">
 
                 <label>
-                  Book / Names :
+                  Package Name
                 </label>
 
                 <input
