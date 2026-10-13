@@ -49,12 +49,14 @@ const RANGE_PACKAGE_CATALOG = {
     { name: "40 cal teflon", unitPrice: 20, unit: "piece" },
     { name: "45 acp teflon", unitPrice: 28, unit: "piece" },
   ],
+  Others: [],
 };
 
 const RANGE_PACKAGE_CATEGORY_LABELS = {
   "Range Fee Rates": "Range Fee",
   "Ammunition Corkage": "Ammunition Corkage Fee",
   "Ammunition Prices": "Ammunition Fee",
+  Others: "Others",
 };
 
 const RANGE_PACKAGE_QUANTITY_ITEMS = {
@@ -64,24 +66,44 @@ const RANGE_PACKAGE_QUANTITY_ITEMS = {
   ),
 };
 
-const getRangePackageContents = (categories, selectedItems, quantities) =>
+const getRangePackageContents = (
+  categories,
+  selectedItems,
+  quantities,
+  otherRangeItem
+) =>
   categories
     .filter((category) => RANGE_PACKAGE_CATALOG[category])
     .map((category) => ({
       category,
-      items: RANGE_PACKAGE_CATALOG[category]
-        .filter((item) => selectedItems[category]?.includes(item.name))
-        .map((item) => ({
-          name: item.name,
-          unitPrice: item.unitPrice,
-          unit: item.unit,
-          pricing: item.pricing || "",
-          ...(RANGE_PACKAGE_QUANTITY_ITEMS[category]?.includes(item.name)
-            ? { quantity: Number(quantities[category]?.[item.name]) || 0 }
-            : {}),
-        })),
+      items:
+        category === "Others"
+          ? [
+              {
+                name: otherRangeItem.details.trim(),
+                details: otherRangeItem.details.trim(),
+                unitPrice: Number(otherRangeItem.price),
+                unit: "item",
+                pricing: "custom-flat",
+              },
+            ]
+          : RANGE_PACKAGE_CATALOG[category]
+              .filter((item) => selectedItems[category]?.includes(item.name))
+              .map((item) => ({
+                name: item.name,
+                unitPrice: item.unitPrice,
+                unit: item.unit,
+                pricing: item.pricing || "",
+                ...(RANGE_PACKAGE_QUANTITY_ITEMS[category]?.includes(item.name)
+                  ? { quantity: Number(quantities[category]?.[item.name]) || 0 }
+                  : {}),
+              })),
     }))
-    .filter(({ items }) => items.length > 0);
+    .filter(
+      ({ category, items }) =>
+        items.length > 0 &&
+        (category !== "Others" || items[0].name)
+    );
 
 export default function BookingManagement() {
   const [showForm, setShowForm] = useState(false);
@@ -117,6 +139,10 @@ const [booking, setBooking] = useState({
   const [rangePackageCategories, setRangePackageCategories] = useState([]);
 const [selectedRangePackageItems, setSelectedRangePackageItems] = useState({});
   const [rangePackageItemQuantities, setRangePackageItemQuantities] = useState({});
+  const [otherRangeItem, setOtherRangeItem] = useState({
+    details: "",
+    price: "",
+  });
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -246,6 +272,9 @@ const isTimeBooked = (date, time) => {
         ...quantities,
         [category]: {},
       }));
+      if (category === "Others") {
+        setOtherRangeItem({ details: "", price: "" });
+      }
     } else {
       setRangePackageCategories((categories) =>
         categories.includes(category) ? categories : [...categories, category]
@@ -300,6 +329,7 @@ const isTimeBooked = (date, time) => {
     setRangePackageCategories([]);
     setSelectedRangePackageItems({});
     setRangePackageItemQuantities({});
+    setOtherRangeItem({ details: "", price: "" });
 
     setBooking({
     customerType: "",
@@ -344,6 +374,12 @@ const isTimeBooked = (date, time) => {
     const existingPackageItems = Array.isArray(item.packageItems)
       ? item.packageItems
       : [];
+    const existingOtherItem =
+      existingPackageContents.find(({ category }) => category === "Others")
+        ?.items?.[0] ||
+      existingPackageItems.find(
+        (packageItem) => packageItem.category === "Others"
+      );
     const selectedItems = {};
     const itemQuantities = {};
 
@@ -382,6 +418,13 @@ const isTimeBooked = (date, time) => {
     setRangePackageCategories(existingPackageCategories);
     setSelectedRangePackageItems(selectedItems);
     setRangePackageItemQuantities(itemQuantities);
+    setOtherRangeItem({
+      details: existingOtherItem?.details || existingOtherItem?.name || "",
+      price:
+        existingOtherItem?.unitPrice == null
+          ? ""
+          : String(existingOtherItem.unitPrice),
+    });
     setBooking({
       customerType:
         item.customerType ||
@@ -440,10 +483,22 @@ const isTimeBooked = (date, time) => {
 
     setError("");
 
+    if (
+      rangePackageCategories.includes("Others") &&
+      (!otherRangeItem.details.trim() ||
+        otherRangeItem.price === "" ||
+        !Number.isFinite(Number(otherRangeItem.price)) ||
+        Number(otherRangeItem.price) < 0)
+    ) {
+      setError("Enter a description and a valid price for Others.");
+      return;
+    }
+
     const selectedPackageContents = getRangePackageContents(
       rangePackageCategories,
       selectedRangePackageItems,
-      rangePackageItemQuantities
+      rangePackageItemQuantities,
+      otherRangeItem
     );
     const itemsMissingQuantity = selectedPackageContents.some(
       ({ items }) =>
@@ -757,7 +812,7 @@ const handleCancelBooking = async (id) => {
   };
 
   const getRangePackageItemRate = (item) =>
-    item.pricing === "corkage-flat"
+    item.pricing === "corkage-flat" || item.pricing === "custom-flat"
       ? `${formatPrice(item.unitPrice)} flat rate`
       : `${formatPrice(item.unitPrice)} per ${item.unit}`;
 
@@ -805,7 +860,8 @@ const handleCancelBooking = async (id) => {
   const selectedRangePackageContents = getRangePackageContents(
     rangePackageCategories,
     selectedRangePackageItems,
-    rangePackageItemQuantities
+    rangePackageItemQuantities,
+    otherRangeItem
   );
   const rangePackageDetails = selectedRangePackageContents.length
     ? getRangePackageDetails(selectedRangePackageContents)
@@ -1241,60 +1297,99 @@ const handleCancelBooking = async (id) => {
                 {rangePackageCategories.map((category) => (
                   <div className="range-package-category-content" key={category}>
                     <h4>{RANGE_PACKAGE_CATEGORY_LABELS[category]}</h4>
-                    <ul>
-                      {RANGE_PACKAGE_CATALOG[category].map((item) => (
-                        <li key={item.name}>
-                          <label className="range-package-item-option">
-                            <input
-                              type="checkbox"
-                              checked={
-                                selectedRangePackageItems[category]?.includes(
-                                  item.name
-                                ) || false
-                              }
-                              onChange={() =>
-                                handleRangePackageItemChange(
-                                  category,
-                                  item.name
-                                )
-                              }
-                            />
-                            <span>{item.name}</span>
-                          </label>
-                          <strong>
-                            {getRangePackageItemRate(item)}
-                          </strong>
-                          {RANGE_PACKAGE_QUANTITY_ITEMS[category]?.includes(
-                            item.name
-                          ) &&
-                            selectedRangePackageItems[category]?.includes(
+                    {category === "Others" ? (
+                      <div className="range-package-other-fields">
+                        <label>
+                          Details
+                          <input
+                            type="text"
+                            value={otherRangeItem.details}
+                            onChange={(event) => {
+                              setOtherRangeItem((current) => ({
+                                ...current,
+                                details: event.target.value,
+                              }));
+                              setError("");
+                            }}
+                            placeholder="Enter other item details"
+                            required
+                          />
+                        </label>
+                        <label>
+                          Price
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={otherRangeItem.price}
+                            onChange={(event) => {
+                              setOtherRangeItem((current) => ({
+                                ...current,
+                                price: event.target.value,
+                              }));
+                              setError("");
+                            }}
+                            placeholder="Enter price"
+                            required
+                          />
+                        </label>
+                      </div>
+                    ) : (
+                      <ul>
+                        {RANGE_PACKAGE_CATALOG[category].map((item) => (
+                          <li key={item.name}>
+                            <label className="range-package-item-option">
+                              <input
+                                type="checkbox"
+                                checked={
+                                  selectedRangePackageItems[category]?.includes(
+                                    item.name
+                                  ) || false
+                                }
+                                onChange={() =>
+                                  handleRangePackageItemChange(
+                                    category,
+                                    item.name
+                                  )
+                                }
+                              />
+                              <span>{item.name}</span>
+                            </label>
+                            <strong>
+                              {getRangePackageItemRate(item)}
+                            </strong>
+                            {RANGE_PACKAGE_QUANTITY_ITEMS[category]?.includes(
                               item.name
-                            ) && (
-                              <label className="range-package-quantity">
-                                Quantity
-                                <input
-                                  type="number"
-                                  min="1"
-                                  step="1"
-                                  value={
-                                    rangePackageItemQuantities[category]?.[
-                                      item.name
-                                    ] || ""
-                                  }
-                                  onChange={(event) =>
-                                    handleRangePackageQuantityChange(
-                                      category,
-                                      item.name,
-                                      event.target.value
-                                    )
-                                  }
-                                  aria-label={`Quantity for ${item.name}`}
-                                />
-                              </label>
-                            )}
-                        </li>
-                      ))}
-                    </ul>
+                            ) &&
+                              selectedRangePackageItems[category]?.includes(
+                                item.name
+                              ) && (
+                                <label className="range-package-quantity">
+                                  Quantity
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    value={
+                                      rangePackageItemQuantities[category]?.[
+                                        item.name
+                                      ] || ""
+                                    }
+                                    onChange={(event) =>
+                                      handleRangePackageQuantityChange(
+                                        category,
+                                        item.name,
+                                        event.target.value
+                                      )
+                                    }
+                                    aria-label={`Quantity for ${item.name}`}
+                                  />
+                                </label>
+                              )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 ))}
               </section>

@@ -16,6 +16,7 @@ const RANGE_PACKAGE_CATEGORY_LABELS = {
   "Range Fee Rates": "Range Fee",
   "Ammunition Corkage": "Ammunition Corkage Fee",
   "Ammunition Prices": "Ammunition Fee",
+  Others: "Others",
 };
 
 export default function BookingHistory() {
@@ -104,7 +105,7 @@ export default function BookingHistory() {
   };
 
   const getPackageItemRate = (item) =>
-    item.pricing === "corkage-flat"
+    item.pricing === "corkage-flat" || item.pricing === "custom-flat"
       ? `${formatPrice(item.unitPrice)} flat rate`
       : `${formatPrice(item.unitPrice)} per ${item.unit}`;
 
