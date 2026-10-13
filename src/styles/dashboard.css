@@ -45,7 +45,7 @@
   display: grid;
 
   grid-template-columns: repeat(
-    5,
+    3,
     minmax(0, 1fr)
   );
 
@@ -904,6 +904,14 @@
 
 .range-sales-card::after {
   background: rgba(196, 181, 253, 0.24);
+}
+
+.membership-sales-card {
+  border-color: #cce8e1;
+}
+
+.membership-sales-card::after {
+  background: rgba(110, 231, 183, 0.2);
 }
 
 .dashboard-insights {

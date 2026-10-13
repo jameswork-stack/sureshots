@@ -9,6 +9,7 @@ export default function Dashboard() {
   const [presentMembers, setPresentMembers] = useState(0);
   const [totalSalesRevenue, setTotalSalesRevenue] = useState(0);
   const [totalRangeSales, setTotalRangeSales] = useState(0);
+  const [totalMembershipSales, setTotalMembershipSales] = useState(0);
   const [topPackages, setTopPackages] = useState([]);
   const [salesData, setSalesData] = useState([]);
 
@@ -196,7 +197,14 @@ export default function Dashboard() {
                   Number.isFinite(quantity) &&
                   quantity >= 0
                 ) {
-                  rangeSalesRevenue += unitPrice * quantity;
+                  const itemRevenue = unitPrice * quantity;
+                  rangeSalesRevenue += itemRevenue;
+                  if (
+                    category.category === "Range Fee Rates" &&
+                    item.name === "Range Fee"
+                  ) {
+                    salesRevenue += itemRevenue;
+                  }
                 }
               });
             });
@@ -211,7 +219,14 @@ export default function Dashboard() {
                 Number.isFinite(quantity) &&
                 quantity >= 0
               ) {
-                rangeSalesRevenue += unitPrice * quantity;
+                const itemRevenue = unitPrice * quantity;
+                rangeSalesRevenue += itemRevenue;
+                if (
+                  item.category === "Range Fee Rates" &&
+                  item.name === "Range Fee"
+                ) {
+                  salesRevenue += itemRevenue;
+                }
               }
             });
           }
@@ -243,6 +258,18 @@ export default function Dashboard() {
       setPresentMembers(
         attendanceSnapshot.size
       );
+
+      const membershipSnapshot = await getDocs(
+        collection(db, "sureshotsMembers")
+      );
+      const membershipSales = membershipSnapshot.docs.reduce(
+        (total, memberDoc) => {
+          const price = Number(memberDoc.data().membershipPrice);
+          return Number.isFinite(price) ? total + price : total;
+        },
+        0
+      );
+      setTotalMembershipSales(membershipSales);
 
     } catch (error) {
       console.error(
@@ -652,7 +679,29 @@ export default function Dashboard() {
 
             </div>
 
-        </div>
+          </div>
+
+          {/* Membership Sales */}
+
+          <div className="dashboard-card membership-sales-card">
+
+            <div className="dashboard-card-content">
+
+              <p>Total Membership Sales</p>
+
+              <h2>
+                {loading
+                  ? "..."
+                  : formatCurrency(totalMembershipSales)}
+              </h2>
+
+              <span>
+                Regular, Gold, and Diamond memberships
+              </span>
+
+            </div>
+
+          </div>
 
       </div>
 

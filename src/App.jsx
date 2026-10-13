@@ -7,6 +7,7 @@ import BookingHistory from "./pages/BookingHistory";
 import Navbar from "./components/Navbar";
 import backgroundImage from "./images/background.png";
 import Attendance from "./pages/Attendance";
+import Members from "./pages/Members";
 
 const pageBackgroundStyle = {
   backgroundImage: `url(${backgroundImage})`,
@@ -72,11 +73,23 @@ export default function App() {
             </MainLayout>
           }
         />
+
+        {/* Attendance */}
         <Route
   path="/attendance"
   element={
     <MainLayout>
       <Attendance />
+    </MainLayout>
+  }
+/>
+
+{/* members */}
+        <Route
+  path="/members"
+  element={
+    <MainLayout>
+      <Members />
     </MainLayout>
   }
 />

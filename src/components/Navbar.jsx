@@ -64,6 +64,18 @@ export default function Navbar() {
           Booking Management
         </NavLink>
 
+
+        
+        <NavLink
+          to="/members"
+          onClick={closeMenu}
+          className={({ isActive }) =>
+            isActive ? "nav-link active" : "nav-link"
+          }
+        >
+          Members
+        </NavLink>
+
         <NavLink
           to="/booking-history"
           onClick={closeMenu}
