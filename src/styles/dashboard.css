@@ -36,6 +36,49 @@
   font-size: 14px;
 }
 
+.dashboard-date-filter {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.dashboard-date-filter label {
+  display: grid;
+  gap: 5px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dashboard-date-filter input {
+  min-width: 145px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #0f172a;
+  font: inherit;
+}
+
+.dashboard-date-clear {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dashboard-date-clear:hover {
+  background: #dbeafe;
+}
+
 
 /* =========================
    DASHBOARD CARDS
@@ -961,6 +1004,16 @@
   background: #eff6ff;
 }
 
+.sales-custom-range {
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .sales-filter button {
   padding: 8px 10px;
   border: 0;
@@ -1072,6 +1125,16 @@
 }
 
 @media (max-width: 800px) {
+  .dashboard-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .dashboard-date-filter {
+    flex-wrap: wrap;
+  }
+
   .sales-chart-header {
     align-items: flex-start;
   }
@@ -1124,5 +1187,14 @@
     flex: 1;
     padding-inline: 7px;
     font-size: 10px;
+  }
+
+  .dashboard-date-filter {
+    width: 100%;
+  }
+
+  .dashboard-date-filter label,
+  .dashboard-date-filter input {
+    width: 100%;
   }
 }

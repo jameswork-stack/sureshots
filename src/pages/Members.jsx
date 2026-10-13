@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   addDoc,
   collection,
@@ -60,6 +61,9 @@ export default function Members() {
   const [showForm, setShowForm] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const [memberForm, setMemberForm] = useState(EMPTY_MEMBER_FORM);
+  const [printingMember, setPrintingMember] = useState(null);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [menuPosition, setMenuPosition] = useState(null);
 
   const fetchMembers = async () => {
     const snapshot = await getDocs(collection(db, MEMBERS_COLLECTION));
@@ -88,6 +92,48 @@ export default function Members() {
 
     loadMembers();
   }, []);
+
+  useEffect(() => {
+    if (!printingMember) {
+      return;
+    }
+
+    const originalTitle = document.title;
+    document.title = `Membership - ${printingMember.memberName || "Member"}`;
+
+    const handleAfterPrint = () => {
+      document.title = originalTitle;
+      setPrintingMember(null);
+    };
+
+    window.addEventListener("afterprint", handleAfterPrint);
+    const printTimeout = window.setTimeout(() => window.print(), 100);
+
+    return () => {
+      window.clearTimeout(printTimeout);
+      window.removeEventListener("afterprint", handleAfterPrint);
+      document.title = originalTitle;
+    };
+  }, [printingMember]);
+
+  useEffect(() => {
+    if (!openMenuId) {
+      return;
+    }
+
+    const closeMenu = () => {
+      setOpenMenuId(null);
+      setMenuPosition(null);
+    };
+
+    window.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("resize", closeMenu);
+
+    return () => {
+      window.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("resize", closeMenu);
+    };
+  }, [openMenuId]);
 
   const filteredMembers = useMemo(() => {
     const searchTerm = search.trim().toLocaleLowerCase();
@@ -250,6 +296,8 @@ export default function Members() {
     }
   };
 
+  const selectedMember = members.find((member) => member.id === openMenuId);
+
   return (
     <div className="members-page">
       <header className="members-header">
@@ -306,6 +354,50 @@ export default function Members() {
             />
           </label>
         </div>
+
+        {selectedMember && menuPosition &&
+          createPortal(
+            <div
+              className="member-action-menu"
+              role="menu"
+              style={{
+                top: menuPosition.top,
+                left: menuPosition.left,
+              }}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  openEditForm(selectedMember);
+                  setOpenMenuId(null);
+                  setMenuPosition(null);
+                }}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setPrintingMember(selectedMember);
+                  setOpenMenuId(null);
+                  setMenuPosition(null);
+                }}
+              >
+                Print / Save as PDF
+              </button>
+              <button
+                className="member-menu-delete-item"
+                type="button"
+                role="menuitem"
+                onClick={() => handleDeleteMember(selectedMember)}
+              >
+                Delete
+              </button>
+            </div>,
+            document.body
+          )}
 
         {pageError && (
           <p className="members-error" role="alert">
@@ -371,24 +463,50 @@ export default function Members() {
                         : "Not set"}
                     </td>
                     <td>
-                      <div className="member-row-actions">
-                        <button
-                          type="button"
-                          className="member-edit-button"
-                          onClick={() => openEditForm(member)}
-                          aria-label={`Edit ${member.memberName}`}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          className="member-delete-button"
-                          onClick={() => handleDeleteMember(member)}
-                          aria-label={`Delete ${member.memberName}`}
-                        >
-                          Delete
-                        </button>
-                      </div>
+                      <button
+                        className="member-three-dot-btn"
+                        type="button"
+                        aria-label={`Actions for ${member.memberName}`}
+                        aria-haspopup="menu"
+                        aria-expanded={openMenuId === member.id}
+                        onClick={(event) => {
+                          if (openMenuId === member.id) {
+                            setOpenMenuId(null);
+                            setMenuPosition(null);
+                            return;
+                          }
+
+                          const buttonRect =
+                            event.currentTarget.getBoundingClientRect();
+                          const menuWidth = 200;
+                          const menuHeight = 140;
+                          const top =
+                            buttonRect.bottom + menuHeight + 8 >
+                            window.innerHeight
+                              ? buttonRect.top - menuHeight - 4
+                              : buttonRect.bottom + 4;
+
+                          setMenuPosition({
+                            top: Math.max(
+                              8,
+                              Math.min(
+                                top,
+                                window.innerHeight - menuHeight - 8
+                              )
+                            ),
+                            left: Math.max(
+                              8,
+                              Math.min(
+                                buttonRect.right - menuWidth,
+                                window.innerWidth - menuWidth - 8
+                              )
+                            ),
+                          });
+                          setOpenMenuId(member.id);
+                        }}
+                      >
+                        ⋮
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -551,6 +669,45 @@ export default function Members() {
             </form>
           </section>
         </div>
+      )}
+
+      {printingMember && (
+        <article className="members-print-sheet">
+          <header className="members-print-header">
+            <p>SURESHOTS MEMBERSHIP</p>
+            <h1>Membership Details</h1>
+          </header>
+          <section className="members-print-section">
+            <h2>{printingMember.memberName || "Unnamed member"}</h2>
+            <dl className="members-print-grid">
+              <div>
+                <dt>Member number</dt>
+                <dd>{printingMember.memberNumber || "-"}</dd>
+              </div>
+              <div>
+                <dt>Membership type</dt>
+                <dd>{printingMember.membershipType || "Not set"}</dd>
+              </div>
+              <div>
+                <dt>Phone number</dt>
+                <dd>{printingMember.memberPhoneNumber || "Not set"}</dd>
+              </div>
+              <div>
+                <dt>Expiration date</dt>
+                <dd>{formatDate(printingMember.expirationDate)}</dd>
+              </div>
+              <div>
+                <dt>Membership price</dt>
+                <dd>
+                  {Number.isFinite(Number(printingMember.membershipPrice)) &&
+                  printingMember.membershipPrice !== undefined
+                    ? formatCurrency(Number(printingMember.membershipPrice))
+                    : "Not set"}
+                </dd>
+              </div>
+            </dl>
+          </section>
+        </article>
       )}
     </div>
   );

@@ -1,7 +1,55 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase";
 import "../styles/dashboard.css";
+
+const getTodayDate = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const formatDateKey = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const getDateFromValue = (value) => {
+  if (value?.toDate) {
+    return value.toDate();
+  }
+
+  if (typeof value === "string" && value) {
+    const date = new Date(`${value.slice(0, 10)}T00:00:00`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  return null;
+};
+
+const getBookingDate = (booking) => {
+  if (booking.completedAt?.toDate) {
+    return booking.completedAt.toDate();
+  }
+
+  return getDateFromValue(booking.bookDate);
+};
+
+const isDateInSelectedRange = (date, dateFrom, dateTo) => {
+  if (!date) {
+    return false;
+  }
+
+  const dateKey = formatDateKey(date);
+  return (!dateFrom || dateKey >= dateFrom) &&
+    (!dateTo || dateKey <= dateTo);
+};
 
 export default function Dashboard() {
   const [totalBookings, setTotalBookings] = useState(0);
@@ -14,33 +62,12 @@ export default function Dashboard() {
   const [salesData, setSalesData] = useState([]);
 
   const [salesFilter, setSalesFilter] = useState("7days");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchSalesGraph();
-  }, [salesFilter]);
-
-  useEffect(() => {
-    fetchDashboardData();
-    fetchTopPackages();
-  }, []);
-
-
-  // ==========================================
-  // GET TODAY
-  // ==========================================
-
-  const getTodayDate = () => {
-    const today = new Date();
-
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, "0");
-    const day = String(today.getDate()).padStart(2, "0");
-
-    return `${year}-${month}-${day}`;
-  };
-  const fetchTopPackages = async () => {
+  const fetchTopPackages = useCallback(async () => {
   try {
     const bookingsSnapshot = await getDocs(
       collection(db, "bookings")
@@ -53,6 +80,14 @@ export default function Dashboard() {
 
       // Only completed bookings
       if (booking.status !== "Completed") {
+        return;
+      }
+
+      const bookingDate = getBookingDate(booking);
+      if (
+        (dateFrom || dateTo) &&
+        !isDateInSelectedRange(bookingDate, dateFrom, dateTo)
+      ) {
         return;
       }
 
@@ -87,7 +122,7 @@ export default function Dashboard() {
       error
     );
   }
-};
+  }, [dateFrom, dateTo]);
 
 
   // ==========================================
@@ -106,46 +141,11 @@ export default function Dashboard() {
   // FORMAT DATE
   // ==========================================
 
-  const formatDateKey = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-
-    return `${year}-${month}-${day}`;
-  };
-
-
-  // ==========================================
-  // GET BOOKING DATE
-  // ==========================================
-
-  const getBookingDate = (booking) => {
-    // Prefer completedAt because revenue
-    // belongs to completed bookings.
-    if (booking.completedAt?.toDate) {
-      return booking.completedAt.toDate();
-    }
-
-    // Fallback to bookDate
-    if (booking.bookDate) {
-      const date = new Date(
-        `${booking.bookDate}T00:00:00`
-      );
-
-      if (!isNaN(date.getTime())) {
-        return date;
-      }
-    }
-
-    return null;
-  };
-
-
   // ==========================================
   // FETCH DASHBOARD CARDS
   // ==========================================
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -166,12 +166,21 @@ export default function Dashboard() {
         const booking = doc.data();
 
         // Active bookings
-        if (booking.status === "Booked") {
+        const bookingDate =
+          booking.status === "Completed"
+            ? getBookingDate(booking)
+            : getDateFromValue(booking.bookDate);
+        const isInSelectedRange =
+          !dateFrom && !dateTo
+            ? true
+            : isDateInSelectedRange(bookingDate, dateFrom, dateTo);
+
+        if (booking.status === "Booked" && isInSelectedRange) {
           activeBookingCount++;
         }
 
         // Completed bookings
-        if (booking.status === "Completed") {
+        if (booking.status === "Completed" && isInSelectedRange) {
           completedBookingCount++;
 
           const price = Number(booking.price) || 0;
@@ -243,28 +252,44 @@ export default function Dashboard() {
       // PRESENT MEMBERS TODAY
       // ==========================================
 
-      const today = getTodayDate();
-
-      const attendanceQuery = query(
-        collection(db, "attendance"),
-        where("date", "==", today),
-        where("status", "==", "Present")
+      const attendanceRef = collection(db, "attendance");
+      const attendanceQuery = dateFrom || dateTo
+        ? query(attendanceRef, where("status", "==", "Present"))
+        : query(
+            attendanceRef,
+            where("date", "==", getTodayDate()),
+            where("status", "==", "Present")
+          );
+      const attendanceSnapshot = await getDocs(attendanceQuery);
+      const attendanceRecords = attendanceSnapshot.docs.map(
+        (attendanceDoc) => attendanceDoc.data()
       );
-
-      const attendanceSnapshot = await getDocs(
-        attendanceQuery
-      );
-
-      setPresentMembers(
-        attendanceSnapshot.size
-      );
+      const selectedAttendance = dateFrom || dateTo
+        ? attendanceRecords.filter((attendance) =>
+            isDateInSelectedRange(
+              getDateFromValue(attendance.date),
+              dateFrom,
+              dateTo
+            )
+          )
+        : attendanceRecords;
+      setPresentMembers(selectedAttendance.length);
 
       const membershipSnapshot = await getDocs(
         collection(db, "sureshotsMembers")
       );
       const membershipSales = membershipSnapshot.docs.reduce(
         (total, memberDoc) => {
-          const price = Number(memberDoc.data().membershipPrice);
+          const member = memberDoc.data();
+          const createdAt = getDateFromValue(member.createdAt);
+          if (
+            (dateFrom || dateTo) &&
+            !isDateInSelectedRange(createdAt, dateFrom, dateTo)
+          ) {
+            return total;
+          }
+
+          const price = Number(member.membershipPrice);
           return Number.isFinite(price) ? total + price : total;
         },
         0
@@ -279,14 +304,14 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateFrom, dateTo]);
 
 
   // ==========================================
   // FETCH SALES GRAPH
   // ==========================================
 
-  const fetchSalesGraph = async () => {
+  const fetchSalesGraph = useCallback(async () => {
     try {
       const bookingsSnapshot = await getDocs(
         collection(db, "bookings")
@@ -300,6 +325,108 @@ export default function Dashboard() {
         );
 
       const today = new Date();
+
+      if (dateFrom || dateTo) {
+        const completedDates = completedBookings
+          .map((booking) => getBookingDate(booking))
+          .filter(Boolean)
+          .sort((first, second) => first - second);
+        const startDate = dateFrom
+          ? getDateFromValue(dateFrom)
+          : completedDates[0] || today;
+        const endDate = dateTo
+          ? getDateFromValue(dateTo)
+          : today;
+
+        if (!startDate || !endDate || startDate > endDate) {
+          setSalesData([]);
+          return;
+        }
+
+        const rangeDays =
+          (Date.UTC(
+            endDate.getFullYear(),
+            endDate.getMonth(),
+            endDate.getDate()
+          ) -
+            Date.UTC(
+              startDate.getFullYear(),
+              startDate.getMonth(),
+              startDate.getDate()
+            )) /
+            86400000 +
+          1;
+        const usesDailyBuckets = rangeDays <= 31;
+        const buckets = [];
+
+        if (usesDailyBuckets) {
+          const date = new Date(startDate);
+          date.setHours(0, 0, 0, 0);
+
+          while (date <= endDate) {
+            buckets.push({
+              key: formatDateKey(date),
+              label: date.getDate().toString(),
+              dateLabel: date.toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+              }),
+              total: 0,
+            });
+            date.setDate(date.getDate() + 1);
+          }
+        } else {
+          const date = new Date(
+            startDate.getFullYear(),
+            startDate.getMonth(),
+            1
+          );
+
+          while (
+            date.getFullYear() < endDate.getFullYear() ||
+            (date.getFullYear() === endDate.getFullYear() &&
+              date.getMonth() <= endDate.getMonth())
+          ) {
+            buckets.push({
+              year: date.getFullYear(),
+              month: date.getMonth(),
+              label: date.toLocaleDateString("en-US", {
+                month: "short",
+              }),
+              dateLabel: date.toLocaleDateString("en-US", {
+                month: "long",
+                year: "numeric",
+              }),
+              total: 0,
+            });
+            date.setMonth(date.getMonth() + 1);
+          }
+        }
+
+        completedBookings.forEach((booking) => {
+          const bookingDate = getBookingDate(booking);
+          if (!isDateInSelectedRange(bookingDate, dateFrom, dateTo)) {
+            return;
+          }
+
+          const bucket = usesDailyBuckets
+            ? buckets.find(
+                (item) => item.key === formatDateKey(bookingDate)
+              )
+            : buckets.find(
+                (item) =>
+                  item.year === bookingDate.getFullYear() &&
+                  item.month === bookingDate.getMonth()
+              );
+
+          if (bucket) {
+            bucket.total += Number(booking.price) || 0;
+          }
+        });
+
+        setSalesData(buckets);
+        return;
+      }
 
       // ==========================================
       // LAST 7 DAYS
@@ -503,7 +630,16 @@ export default function Dashboard() {
         error
       );
     }
-  };
+  }, [dateFrom, dateTo, salesFilter]);
+
+  useEffect(() => {
+    fetchSalesGraph();
+  }, [fetchSalesGraph]);
+
+  useEffect(() => {
+    fetchDashboardData();
+    fetchTopPackages();
+  }, [fetchDashboardData, fetchTopPackages]);
 
 
   // ==========================================
@@ -549,6 +685,39 @@ export default function Dashboard() {
             Overview of your booking
             management system.
           </p>
+        </div>
+
+        <div className="dashboard-date-filter" aria-label="Filter dashboard by date">
+          <label>
+            <span>From</span>
+            <input
+              type="date"
+              value={dateFrom}
+              max={dateTo || undefined}
+              onChange={(event) => setDateFrom(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>To</span>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(event) => setDateTo(event.target.value)}
+            />
+          </label>
+          {(dateFrom || dateTo) && (
+            <button
+              type="button"
+              className="dashboard-date-clear"
+              onClick={() => {
+                setDateFrom("");
+                setDateTo("");
+              }}
+            >
+              Clear
+            </button>
+          )}
         </div>
 
       </div>
@@ -615,7 +784,9 @@ export default function Dashboard() {
           <div className="dashboard-card-content">
 
             <p>
-              Total Present Members Today
+              {dateFrom || dateTo
+                ? "Total Present Members"
+                : "Total Present Members Today"}
             </p>
 
             <h2>
@@ -625,7 +796,9 @@ export default function Dashboard() {
             </h2>
 
             <span>
-              Present today
+              {dateFrom || dateTo
+                ? "Present within selected dates"
+                : "Present today"}
             </span>
 
           </div>
@@ -734,6 +907,9 @@ export default function Dashboard() {
 
           {/* Filter */}
 
+          {dateFrom || dateTo ? (
+            <span className="sales-custom-range">Custom date range</span>
+          ) : (
           <div className="sales-filter">
 
             <button
@@ -779,6 +955,7 @@ export default function Dashboard() {
             </button>
 
           </div>
+          )}
 
         </div>
 
