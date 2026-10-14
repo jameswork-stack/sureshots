@@ -57,6 +57,7 @@ export default function Dashboard() {
   const [presentMembers, setPresentMembers] = useState(0);
   const [totalSalesRevenue, setTotalSalesRevenue] = useState(0);
   const [totalRangeSales, setTotalRangeSales] = useState(0);
+  const [totalRangeFeeAvailed, setTotalRangeFeeAvailed] = useState(0);
   const [totalMembershipSales, setTotalMembershipSales] = useState(0);
   const [topPackages, setTopPackages] = useState([]);
   const [salesData, setSalesData] = useState([]);
@@ -161,6 +162,7 @@ export default function Dashboard() {
       let completedBookingCount = 0;
       let salesRevenue = 0;
       let rangeSalesRevenue = 0;
+      let rangeFeeQuantity = 0;
 
       bookingsSnapshot.docs.forEach((doc) => {
         const booking = doc.data();
@@ -197,9 +199,19 @@ export default function Dashboard() {
               }
 
               category.items.forEach((item) => {
-                const unitPrice = Number(item.unitPrice);
                 const quantity =
                   item.quantity == null ? 1 : Number(item.quantity);
+
+                if (
+                  category.category === "Range Fee Rates" &&
+                  item.name === "Range Fee" &&
+                  Number.isFinite(quantity) &&
+                  quantity >= 0
+                ) {
+                  rangeFeeQuantity += quantity;
+                }
+
+                const unitPrice = Number(item.unitPrice);
 
                 if (
                   Number.isFinite(unitPrice) &&
@@ -207,7 +219,13 @@ export default function Dashboard() {
                   quantity >= 0
                 ) {
                   const itemRevenue = unitPrice * quantity;
-                  rangeSalesRevenue += itemRevenue;
+                  if (
+                    category.category !== "Range Fee Rates" ||
+                    item.name !== "Range Fee"
+                  ) {
+                    rangeSalesRevenue += itemRevenue;
+                  }
+
                   if (
                     category.category === "Range Fee Rates" &&
                     item.name === "Range Fee"
@@ -219,17 +237,32 @@ export default function Dashboard() {
             });
           } else if (Array.isArray(booking.packageItems)) {
             booking.packageItems.forEach((item) => {
-              const unitPrice = Number(item.unitPrice);
               const quantity =
                 item.quantity == null ? 1 : Number(item.quantity);
 
+              if (
+                item.category === "Range Fee Rates" &&
+                item.name === "Range Fee" &&
+                Number.isFinite(quantity) &&
+                quantity >= 0
+              ) {
+                rangeFeeQuantity += quantity;
+              }
+
+              const unitPrice = Number(item.unitPrice);
               if (
                 Number.isFinite(unitPrice) &&
                 Number.isFinite(quantity) &&
                 quantity >= 0
               ) {
                 const itemRevenue = unitPrice * quantity;
-                rangeSalesRevenue += itemRevenue;
+                if (
+                  item.category !== "Range Fee Rates" ||
+                  item.name !== "Range Fee"
+                ) {
+                  rangeSalesRevenue += itemRevenue;
+                }
+
                 if (
                   item.category === "Range Fee Rates" &&
                   item.name === "Range Fee"
@@ -246,6 +279,7 @@ export default function Dashboard() {
       setCompletedBookings(completedBookingCount);
       setTotalSalesRevenue(salesRevenue);
       setTotalRangeSales(rangeSalesRevenue);
+      setTotalRangeFeeAvailed(rangeFeeQuantity);
 
 
       // ==========================================
@@ -729,6 +763,98 @@ export default function Dashboard() {
 
       <div className="dashboard-cards">
 
+        {/* Sales Revenue */}
+
+        <div className="dashboard-card revenue-card">
+
+          <div className="dashboard-card-content">
+
+            <p>
+              Total Firearm Package Sales
+            </p>
+
+            <h2>
+              {loading
+                ? "..."
+                : formatCurrency(
+                    totalSalesRevenue
+                  )}
+            </h2>
+
+            <span>
+              Completed bookings only
+            </span>
+
+          </div>
+
+        </div>
+
+        {/* Range Package Sales */}
+
+        <div className="dashboard-card range-sales-card">
+
+          <div className="dashboard-card-content">
+
+            <p>Total Range Sales</p>
+
+            <h2>
+              {loading
+                ? "..."
+                : formatCurrency(totalRangeSales)}
+            </h2>
+
+            <span>
+              Completed range package items, excluding Range Fee
+            </span>
+
+          </div>
+
+        </div>
+
+        {/* Membership Sales */}
+
+          <div className="dashboard-card membership-sales-card">
+
+            <div className="dashboard-card-content">
+
+              <p>Total Membership Sales</p>
+
+              <h2>
+                {loading
+                  ? "..."
+                  : formatCurrency(totalMembershipSales)}
+              </h2>
+
+              <span>
+                Regular, Gold, and Diamond memberships
+              </span>
+
+            </div>
+
+          </div>
+
+        {/* Range Fee Availed */}
+
+          <div className="dashboard-card range-sales-card">
+
+            <div className="dashboard-card-content">
+
+              <p>Total Range Fee Availed</p>
+
+              <h2>
+                {loading
+                  ? "..."
+                  : totalRangeFeeAvailed}
+              </h2>
+
+              <span>
+                Range Fee quantity in completed bookings
+              </span>
+
+            </div>
+
+          </div>
+
         {/* Total Bookings */}
 
         <div className="dashboard-card">
@@ -804,77 +930,6 @@ export default function Dashboard() {
           </div>
 
         </div>
-
-
-        {/* Sales Revenue */}
-
-        <div className="dashboard-card revenue-card">
-
-          <div className="dashboard-card-content">
-
-            <p>
-              Total Firearm Package Sales
-            </p>
-
-            <h2>
-              {loading
-                ? "..."
-                : formatCurrency(
-                    totalSalesRevenue
-                  )}
-            </h2>
-
-            <span>
-              Completed bookings only
-            </span>
-
-          </div>
-
-        </div>
-
-          {/* Range Package Sales */}
-
-          <div className="dashboard-card range-sales-card">
-
-            <div className="dashboard-card-content">
-
-              <p>Total Range Sales</p>
-
-              <h2>
-                {loading
-                  ? "..."
-                  : formatCurrency(totalRangeSales)}
-              </h2>
-
-              <span>
-                Selected items from completed bookings
-              </span>
-
-            </div>
-
-          </div>
-
-          {/* Membership Sales */}
-
-          <div className="dashboard-card membership-sales-card">
-
-            <div className="dashboard-card-content">
-
-              <p>Total Membership Sales</p>
-
-              <h2>
-                {loading
-                  ? "..."
-                  : formatCurrency(totalMembershipSales)}
-              </h2>
-
-              <span>
-                Regular, Gold, and Diamond memberships
-              </span>
-
-            </div>
-
-          </div>
 
       </div>
 

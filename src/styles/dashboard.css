@@ -1198,3 +1198,39 @@
     width: 100%;
   }
 }
+
+.dashboard-cards {
+  grid-template-columns: repeat(7, minmax(180px, 1fr));
+  overflow-x: auto;
+  gap: 16px;
+  padding: 4px 4px 14px;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-color: #9b5875 #f1e8ed;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dashboard-cards::-webkit-scrollbar {
+  height: 10px;
+}
+
+.dashboard-cards::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: #f1e8ed;
+}
+
+.dashboard-cards::-webkit-scrollbar-thumb {
+  border: 2px solid #f1e8ed;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #9b5875, #c486a0);
+}
+
+.dashboard-cards::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(90deg, #7f405d, #ad6b88);
+}
+
+.dashboard-cards > .dashboard-card {
+  min-width: 180px;
+  scroll-snap-align: start;
+}
