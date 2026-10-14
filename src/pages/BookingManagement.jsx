@@ -898,20 +898,26 @@ const handleCancelBooking = async (id) => {
     (item) => item.status === "Booked"
   );
   const normalizedSearch = bookingSearch.trim().toLocaleLowerCase();
-  const filteredBookings = activeBookings.filter((item) =>
-    [
-      item.bookName,
-      ...(Array.isArray(item.packageContents)
-        ? item.packageContents.flatMap((content) =>
-            content.items.map((packageItem) => packageItem.name)
-          )
-        : []),
-      ...(Array.isArray(item.packageItems)
-        ? item.packageItems.map((packageItem) => packageItem.name)
-        : []),
-    ]
-      .some((name) => (name || "").toLocaleLowerCase().includes(normalizedSearch))
-  );
+  const filteredBookings = activeBookings
+    .filter((item) =>
+      [
+        item.bookName,
+        ...(Array.isArray(item.packageContents)
+          ? item.packageContents.flatMap((content) =>
+              content.items.map((packageItem) => packageItem.name)
+            )
+          : []),
+        ...(Array.isArray(item.packageItems)
+          ? item.packageItems.map((packageItem) => packageItem.name)
+          : []),
+      ]
+        .some((name) =>
+          (name || "").toLocaleLowerCase().includes(normalizedSearch)
+        )
+    )
+    .sort((first, second) =>
+      (first.bookDate || "").localeCompare(second.bookDate || "")
+    );
 
 
   return (
