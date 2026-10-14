@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase";
 import "../styles/dashboard.css";
@@ -51,12 +52,21 @@ const isDateInSelectedRange = (date, dateFrom, dateTo) => {
     (!dateTo || dateKey <= dateTo);
 };
 
+const getCardDetailsUrl = (metric, dateFrom, dateTo) => {
+  const searchParams = new URLSearchParams();
+  if (dateFrom) searchParams.set("from", dateFrom);
+  if (dateTo) searchParams.set("to", dateTo);
+  const search = searchParams.toString();
+  return `/dashboard/records/${metric}${search ? `?${search}` : ""}`;
+};
+
 export default function Dashboard() {
   const [totalBookings, setTotalBookings] = useState(0);
   const [completedBookings, setCompletedBookings] = useState(0);
   const [presentMembers, setPresentMembers] = useState(0);
   const [totalSalesRevenue, setTotalSalesRevenue] = useState(0);
   const [totalRangeSales, setTotalRangeSales] = useState(0);
+  const [totalRangeSoldSales, setTotalRangeSoldSales] = useState(0);
   const [totalRangeFeeAvailed, setTotalRangeFeeAvailed] = useState(0);
   const [totalMembershipSales, setTotalMembershipSales] = useState(0);
   const [topPackages, setTopPackages] = useState([]);
@@ -329,6 +339,44 @@ export default function Dashboard() {
         0
       );
       setTotalMembershipSales(membershipSales);
+
+      const rangeSoldSnapshot = await getDocs(collection(db, "rangeSold"));
+      const rangeSoldRevenue = rangeSoldSnapshot.docs.reduce((total, soldDoc) => {
+        const sale = soldDoc.data();
+        const soldDate = getDateFromValue(sale.soldDate);
+        if (
+          (dateFrom || dateTo) &&
+          !isDateInSelectedRange(soldDate, dateFrom, dateTo)
+        ) {
+          return total;
+        }
+
+        if (sale.totalAmount != null && Number.isFinite(Number(sale.totalAmount))) {
+          return total + Number(sale.totalAmount);
+        }
+
+        const packageContents = Array.isArray(sale.packageContents)
+          ? sale.packageContents
+          : [];
+        return total + packageContents.reduce(
+          (contentsTotal, category) =>
+            contentsTotal +
+            (Array.isArray(category.items)
+              ? category.items.reduce((itemsTotal, item) => {
+                  const unitPrice = Number(item.unitPrice);
+                  const quantity =
+                    item.quantity == null ? 1 : Number(item.quantity);
+                  return Number.isFinite(unitPrice) &&
+                    Number.isFinite(quantity) &&
+                    quantity >= 0
+                    ? itemsTotal + unitPrice * quantity
+                    : itemsTotal;
+                }, 0)
+              : 0),
+          0
+        );
+      }, 0);
+      setTotalRangeSoldSales(rangeSoldRevenue);
 
     } catch (error) {
       console.error(
@@ -765,7 +813,11 @@ export default function Dashboard() {
 
         {/* Sales Revenue */}
 
-        <div className="dashboard-card revenue-card">
+        <Link
+          className="dashboard-card dashboard-card-link revenue-card"
+          to={getCardDetailsUrl("firearm-sales", dateFrom, dateTo)}
+          aria-label="View records included in Total Firearm Package Sales"
+        >
 
           <div className="dashboard-card-content">
 
@@ -787,11 +839,15 @@ export default function Dashboard() {
 
           </div>
 
-        </div>
+        </Link>
 
         {/* Range Package Sales */}
 
-        <div className="dashboard-card range-sales-card">
+        <Link
+          className="dashboard-card dashboard-card-link range-sales-card"
+          to={getCardDetailsUrl("range-sales", dateFrom, dateTo)}
+          aria-label="View records included in Total Range Sales"
+        >
 
           <div className="dashboard-card-content">
 
@@ -809,11 +865,31 @@ export default function Dashboard() {
 
           </div>
 
-        </div>
+        </Link>
+
+        {/* Sold Range Package Sales */}
+
+        <Link
+          className="dashboard-card dashboard-card-link range-sold-sales-card"
+          to={getCardDetailsUrl("range-sold-sales", dateFrom, dateTo)}
+          aria-label="View records included in Total Range Sold"
+        >
+          <div className="dashboard-card-content">
+            <p>Total Range Sold</p>
+            <h2>
+              {loading ? "..." : formatCurrency(totalRangeSoldSales)}
+            </h2>
+            <span>Saved rangeSold items</span>
+          </div>
+        </Link>
 
         {/* Membership Sales */}
 
-          <div className="dashboard-card membership-sales-card">
+          <Link
+            className="dashboard-card dashboard-card-link membership-sales-card"
+            to={getCardDetailsUrl("membership-sales", dateFrom, dateTo)}
+            aria-label="View records included in Total Membership Sales"
+          >
 
             <div className="dashboard-card-content">
 
@@ -831,11 +907,15 @@ export default function Dashboard() {
 
             </div>
 
-          </div>
+          </Link>
 
         {/* Range Fee Availed */}
 
-          <div className="dashboard-card range-sales-card">
+          <Link
+            className="dashboard-card dashboard-card-link range-sales-card"
+            to={getCardDetailsUrl("range-fee-availed", dateFrom, dateTo)}
+            aria-label="View bookings included in Total Range Fee Availed"
+          >
 
             <div className="dashboard-card-content">
 
@@ -853,11 +933,15 @@ export default function Dashboard() {
 
             </div>
 
-          </div>
+          </Link>
 
         {/* Total Bookings */}
 
-        <div className="dashboard-card">
+        <Link
+          className="dashboard-card dashboard-card-link"
+          to={getCardDetailsUrl("bookings", dateFrom, dateTo)}
+          aria-label="View active booking records"
+        >
 
           <div className="dashboard-card-content">
 
@@ -875,12 +959,16 @@ export default function Dashboard() {
 
           </div>
 
-        </div>
+        </Link>
 
 
         {/* Completed Bookings */}
 
-        <div className="dashboard-card completed-card">
+        <Link
+          className="dashboard-card dashboard-card-link completed-card"
+          to={getCardDetailsUrl("completed-bookings", dateFrom, dateTo)}
+          aria-label="View completed booking records"
+        >
 
           <div className="dashboard-card-content">
 
@@ -900,12 +988,16 @@ export default function Dashboard() {
 
           </div>
 
-        </div>
+        </Link>
 
 
         {/* Present Members */}
 
-        <div className="dashboard-card present-card">
+        <Link
+          className="dashboard-card dashboard-card-link present-card"
+          to={getCardDetailsUrl("present-members", dateFrom, dateTo)}
+          aria-label="View present attendance records"
+        >
 
           <div className="dashboard-card-content">
 
@@ -929,7 +1021,7 @@ export default function Dashboard() {
 
           </div>
 
-        </div>
+        </Link>
 
       </div>
 

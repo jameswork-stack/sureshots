@@ -64,6 +64,16 @@ export default function Navbar() {
           Booking Management
         </NavLink>
 
+        <NavLink
+          to="/sold-management"
+          onClick={closeMenu}
+          className={({ isActive }) =>
+            isActive ? "nav-link active" : "nav-link"
+          }
+        >
+          Sold Management
+        </NavLink>
+
 
         
         <NavLink

@@ -1200,7 +1200,7 @@
 }
 
 .dashboard-cards {
-  grid-template-columns: repeat(7, minmax(180px, 1fr));
+  grid-template-columns: repeat(8, minmax(180px, 1fr));
   overflow-x: auto;
   gap: 16px;
   padding: 4px 4px 14px;
@@ -1233,4 +1233,15 @@
 .dashboard-cards > .dashboard-card {
   min-width: 180px;
   scroll-snap-align: start;
+}
+
+.dashboard-card-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.dashboard-card-link:focus-visible {
+  outline: 3px solid #9b5875;
+  outline-offset: 3px;
 }

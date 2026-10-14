@@ -8,6 +8,8 @@ import Navbar from "./components/Navbar";
 import backgroundImage from "./images/background.png";
 import Attendance from "./pages/Attendance";
 import Members from "./pages/Members";
+import DashboardRecords from "./pages/DashboardRecords";
+import SoldManagement from "./pages/SoldManagement";
 
 const pageBackgroundStyle = {
   backgroundImage: `url(${backgroundImage})`,
@@ -54,12 +56,30 @@ export default function App() {
           }
         />
 
+        <Route
+          path="/dashboard/records/:metric"
+          element={
+            <MainLayout>
+              <DashboardRecords />
+            </MainLayout>
+          }
+        />
+
         {/* Booking Management */}
         <Route
           path="/bookings"
           element={
             <MainLayout>
               <BookingManagement />
+            </MainLayout>
+          }
+        />
+
+        <Route
+          path="/sold-management"
+          element={
+            <MainLayout>
+              <SoldManagement />
             </MainLayout>
           }
         />

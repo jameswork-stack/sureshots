@@ -1,0 +1,138 @@
+.dashboard-records-page {
+  width: 100%;
+  color: #0f172a;
+}
+
+.dashboard-records-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.dashboard-records-header h1 {
+  margin: 18px 0 6px;
+  font-size: clamp(26px, 3vw, 34px);
+  letter-spacing: -0.04em;
+}
+
+.dashboard-records-header p {
+  margin: 0;
+  color: #64748b;
+}
+
+.dashboard-records-header .dashboard-records-date-range {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.dashboard-records-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #8a4865;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.dashboard-records-back:hover {
+  color: #653249;
+  text-decoration: underline;
+}
+
+.dashboard-records-total {
+  display: grid;
+  min-width: 190px;
+  gap: 4px;
+  padding: 18px 20px;
+  border: 1px solid #e8d7e0;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #fff, #fcf6f9);
+  box-shadow: 0 8px 24px rgba(104, 47, 75, 0.06);
+}
+
+.dashboard-records-total span,
+.dashboard-records-total small {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.dashboard-records-total strong {
+  font-size: 25px;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-records-panel {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 8px 24px rgba(104, 47, 75, 0.06);
+}
+
+.dashboard-records-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.dashboard-records-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.dashboard-records-table th,
+.dashboard-records-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #edf0f4;
+  font-size: 13px;
+}
+
+.dashboard-records-table thead th {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.dashboard-records-table tbody tr:hover {
+  background: #fcf8fa;
+}
+
+.dashboard-records-table tfoot th,
+.dashboard-records-table tfoot td {
+  border-bottom: 0;
+  background: #faf7f9;
+  font-weight: 700;
+}
+
+.dashboard-record-status {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.dashboard-records-message {
+  padding: 44px 20px;
+  color: #64748b;
+  text-align: center;
+}
+
+@media (max-width: 700px) {
+  .dashboard-records-header {
+    flex-direction: column;
+  }
+
+  .dashboard-records-total {
+    width: 100%;
+  }
+
+  .dashboard-records-table {
+    min-width: 680px;
+  }
+}
