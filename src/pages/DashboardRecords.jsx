@@ -9,12 +9,12 @@ import "../styles/dashboardRecords.css";
 const METRICS = {
   "firearm-sales": {
     title: "Total Firearm Package Sales",
-    description: "Completed booking revenue, including Range Fee charges.",
+    description: "Completed booking revenue, including Range Fee and Target Board sales.",
     type: "bookings",
   },
   "range-sales": {
     title: "Total Range Sales",
-    description: "Completed range package item sales, excluding Range Fee.",
+    description: "Completed range package item sales, excluding Range Fee and Target Board.",
     type: "range-sales",
   },
   "range-sold-sales": {
@@ -299,7 +299,8 @@ export default function DashboardRecords() {
           const quantity = item.quantity == null ? 1 : Number(item.quantity);
           const unitPrice = Number(item.unitPrice);
           if (
-            (item.category === "Range Fee Rates" && item.name === "Range Fee") ||
+            (item.category === "Range Fee Rates" &&
+              (item.name === "Range Fee" || item.name === "Target Board")) ||
             !Number.isFinite(quantity) ||
             quantity < 0 ||
             !Number.isFinite(unitPrice)
@@ -326,6 +327,22 @@ export default function DashboardRecords() {
           ? total + unitPrice * quantity
           : total;
       }, 0);
+      const targetBoardRevenue = items.reduce((total, item) => {
+        if (
+          item.category !== "Range Fee Rates" ||
+          item.name !== "Target Board"
+        ) {
+          return total;
+        }
+
+        const quantity = item.quantity == null ? 1 : Number(item.quantity);
+        const unitPrice = Number(item.unitPrice);
+        return Number.isFinite(quantity) &&
+          quantity >= 0 &&
+          Number.isFinite(unitPrice)
+          ? total + unitPrice * quantity
+          : total;
+      }, 0);
 
       return [{
         id: booking.id,
@@ -333,7 +350,7 @@ export default function DashboardRecords() {
         record: booking.bookName || "Booking",
         details: booking.memberName || booking.customerName || booking.bookTime || "-",
         status,
-        amount: bookingPrice + rangeFeeRevenue,
+        amount: bookingPrice + rangeFeeRevenue + targetBoardRevenue,
       }];
     });
   }, [

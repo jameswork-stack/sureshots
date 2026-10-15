@@ -229,18 +229,15 @@ export default function Dashboard() {
                   quantity >= 0
                 ) {
                   const itemRevenue = unitPrice * quantity;
-                  if (
-                    category.category !== "Range Fee Rates" ||
-                    item.name !== "Range Fee"
-                  ) {
-                    rangeSalesRevenue += itemRevenue;
-                  }
-
-                  if (
+                  if (category.category === "Range Fee Rates" && item.name === "Range Fee") {
+                    salesRevenue += itemRevenue;
+                  } else if (
                     category.category === "Range Fee Rates" &&
-                    item.name === "Range Fee"
+                    item.name === "Target Board"
                   ) {
                     salesRevenue += itemRevenue;
+                  } else {
+                    rangeSalesRevenue += itemRevenue;
                   }
                 }
               });
@@ -266,18 +263,15 @@ export default function Dashboard() {
                 quantity >= 0
               ) {
                 const itemRevenue = unitPrice * quantity;
-                if (
-                  item.category !== "Range Fee Rates" ||
-                  item.name !== "Range Fee"
-                ) {
-                  rangeSalesRevenue += itemRevenue;
-                }
-
-                if (
+                if (item.category === "Range Fee Rates" && item.name === "Range Fee") {
+                  salesRevenue += itemRevenue;
+                } else if (
                   item.category === "Range Fee Rates" &&
-                  item.name === "Range Fee"
+                  item.name === "Target Board"
                 ) {
                   salesRevenue += itemRevenue;
+                } else {
+                  rangeSalesRevenue += itemRevenue;
                 }
               }
             });
@@ -834,7 +828,7 @@ export default function Dashboard() {
             </h2>
 
             <span>
-              Completed bookings only
+              Completed bookings, including Range Fee and Target Board sales
             </span>
 
           </div>
@@ -860,7 +854,7 @@ export default function Dashboard() {
             </h2>
 
             <span>
-              Completed range package items, excluding Range Fee
+              Completed range package items, excluding Range Fee and Target Board
             </span>
 
           </div>
