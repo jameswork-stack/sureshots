@@ -8,11 +8,16 @@ import {
   deleteDoc,
   updateDoc,
   doc,
+  runTransaction,
   serverTimestamp,
 } from "firebase/firestore";
 
 import { db } from "../firebase";
 import { formatDisplayDate } from "../utils/date";
+import {
+  AMMUNITION_CATEGORY,
+  adjustAmmunitionInventory,
+} from "../utils/ammunitionInventory";
 import {
   RANGE_PACKAGE_CATALOG,
   RANGE_PACKAGE_CATEGORY_LABELS,
@@ -20,6 +25,18 @@ import {
   getRangePackageContents,
 } from "../utils/rangePackage";
 import "../styles/bookingManagement.css";
+
+const getManagedPackageAmmoItems = (packageItem) =>
+  Array.isArray(packageItem.ammoItems) && packageItem.ammoItems.length > 0
+    ? packageItem.ammoItems
+    : packageItem.ammoType
+    ? [
+        {
+          ammoType: packageItem.ammoType,
+          ammoQuantity: packageItem.ammoQuantity,
+        },
+      ]
+    : [];
 
 export default function BookingManagement() {
   const [showForm, setShowForm] = useState(false);
@@ -55,7 +72,11 @@ const [booking, setBooking] = useState({
   const [rangePackageCategories, setRangePackageCategories] = useState([]);
 const [selectedRangePackageItems, setSelectedRangePackageItems] = useState({});
   const [rangePackageItemQuantities, setRangePackageItemQuantities] = useState({});
-  const [otherRangeItem, setOtherRangeItem] = useState({
+    const [managedPackages, setManagedPackages] = useState([]);
+    const [managedPackageCategory, setManagedPackageCategory] = useState("");
+    const [selectedManagedPackageId, setSelectedManagedPackageId] = useState("");
+    const [managedPackageError, setManagedPackageError] = useState("");
+    const [otherRangeItem, setOtherRangeItem] = useState({
     details: "",
     price: "",
   });
@@ -74,6 +95,12 @@ const [selectedRangePackageItems, setSelectedRangePackageItems] = useState({});
     "5:00 PM - 6:00 PM",
     "6:00 PM - 7:00 PM",
   ];
+  const managedPackageCategories = [
+    ...new Set(managedPackages.map((packageItem) => packageItem.category)),
+  ].filter(Boolean);
+  const packagesInSelectedCategory = managedPackages.filter(
+    (packageItem) => packageItem.category === managedPackageCategory
+  );
 
   // ================================
   // GET BOOKINGS
@@ -101,6 +128,31 @@ const [selectedRangePackageItems, setSelectedRangePackageItems] = useState({});
 
   useEffect(() => {
     fetchBookings();
+  }, []);
+
+  useEffect(() => {
+    const fetchManagedPackages = async () => {
+      try {
+        const snapshot = await getDocs(collection(db, "rangePackages"));
+        const packageList = snapshot.docs.map((packageDoc) => ({
+          id: packageDoc.id,
+          ...packageDoc.data(),
+        }));
+        packageList.sort(
+          (first, second) =>
+            (first.category || "").localeCompare(second.category || "") ||
+            (first.gunName || "").localeCompare(second.gunName || "")
+        );
+        setManagedPackages(packageList);
+      } catch (loadError) {
+        console.error("Error loading managed packages:", loadError);
+        setManagedPackageError(
+          "Unable to load Package Management packages. Please try again."
+        );
+      }
+    };
+
+    fetchManagedPackages();
   }, []);
 
   useEffect(() => {
@@ -235,6 +287,35 @@ const isTimeBooked = (date, time) => {
     setError("");
   };
 
+  const handleManagedPackageCategoryChange = (category) => {
+    setManagedPackageCategory(category);
+    setSelectedManagedPackageId("");
+    setBooking((current) => ({
+      ...current,
+      bookName: "",
+      details: "",
+      price: "",
+    }));
+    setError("");
+  };
+
+  const handleManagedPackageChange = (packageId) => {
+    const selectedPackage = managedPackages.find(
+      (packageItem) => packageItem.id === packageId
+    );
+    setSelectedManagedPackageId(packageId);
+    if (selectedPackage) {
+      setBooking((current) => ({
+        ...current,
+        bookName: selectedPackage.gunName || "",
+        details: selectedPackage.details || "",
+        price:
+          selectedPackage.price == null ? "" : String(selectedPackage.price),
+      }));
+    }
+    setError("");
+  };
+
 
   // ================================
   // OPEN ADD FORM
@@ -242,6 +323,8 @@ const isTimeBooked = (date, time) => {
 
   const handleAddBooking = () => {
   setEditingBookingId(null);
+    setManagedPackageCategory("");
+    setSelectedManagedPackageId("");
     setRangePackageCategories([]);
     setSelectedRangePackageItems({});
     setRangePackageItemQuantities({});
@@ -271,25 +354,50 @@ const isTimeBooked = (date, time) => {
   // ================================
 
   const handleEditBooking = (item) => {
-    const existingPackageCategories = (
-      Array.isArray(item.packageCategories) && item.packageCategories.length > 0
-        ? item.packageCategories
-        : Array.isArray(item.packageContents) && item.packageContents.length > 0
-        ? item.packageContents.map((content) => content.category)
-        : Array.isArray(item.packageItems)
-        ? [
-            ...new Set(
-              item.packageItems.map((packageItem) => packageItem.category)
-            ),
-          ]
-        : []
-    ).filter((category) => RANGE_PACKAGE_CATALOG[category]);
-    const existingPackageContents = Array.isArray(item.packageContents)
+    const existingManagedPackage = managedPackages.find(
+      (packageItem) => packageItem.id === item.managedPackageId
+    );
+    const storedPackageContents = Array.isArray(item.packageContents)
       ? item.packageContents
       : [];
+    const existingPackageContents = existingManagedPackage
+      ? storedPackageContents
+          .map(({ category, items }) => {
+            const remainingItems = [...(Array.isArray(items) ? items : [])];
+            const removeManagedItem = (name, quantity) => {
+              const itemIndex = remainingItems.findIndex(
+                (packageItem) =>
+                  packageItem.name === name &&
+                  Number(packageItem.quantity) === Number(quantity)
+              );
+              if (itemIndex >= 0) remainingItems.splice(itemIndex, 1);
+            };
+
+            if (category === AMMUNITION_CATEGORY) {
+              getManagedPackageAmmoItems(existingManagedPackage).forEach(
+                ({ ammoType, ammoQuantity }) =>
+                  removeManagedItem(ammoType, ammoQuantity)
+              );
+            } else if (category === "Range Fee Rates") {
+              removeManagedItem(
+                "Target Board",
+                existingManagedPackage.targetBoardQuantity
+              );
+            }
+            return { category, items: remainingItems };
+          })
+          .filter(({ items }) => items.length > 0)
+      : storedPackageContents;
     const existingPackageItems = Array.isArray(item.packageItems)
       ? item.packageItems
       : [];
+    const existingPackageCategories = (
+      storedPackageContents.length > 0
+        ? existingPackageContents.map((content) => content.category)
+        : Array.isArray(item.packageCategories) && item.packageCategories.length > 0
+        ? item.packageCategories
+        : existingPackageItems.map((packageItem) => packageItem.category)
+    ).filter((category) => RANGE_PACKAGE_CATALOG[category]);
     const existingOtherItem =
       existingPackageContents.find(({ category }) => category === "Others")
         ?.items?.[0] ||
@@ -299,7 +407,7 @@ const isTimeBooked = (date, time) => {
     const selectedItems = {};
     const itemQuantities = {};
 
-    if (existingPackageContents.length > 0) {
+    if (storedPackageContents.length > 0) {
       existingPackageContents.forEach(({ category, items }) => {
         selectedItems[category] = items.map((packageItem) => packageItem.name);
         itemQuantities[category] = Object.fromEntries(
@@ -331,6 +439,10 @@ const isTimeBooked = (date, time) => {
     }
 
     setEditingBookingId(item.id);
+    setManagedPackageCategory(
+      existingManagedPackage?.category || item.managedPackageCategory || ""
+    );
+    setSelectedManagedPackageId(existingManagedPackage?.id || "");
     setRangePackageCategories(existingPackageCategories);
     setSelectedRangePackageItems(selectedItems);
     setRangePackageItemQuantities(itemQuantities);
@@ -410,12 +522,26 @@ const isTimeBooked = (date, time) => {
       return;
     }
 
-    const selectedPackageContents = getRangePackageContents(
-      rangePackageCategories,
-      selectedRangePackageItems,
-      rangePackageItemQuantities,
-      otherRangeItem
-    );
+    const selectedPackageContents = bookingPackageContents;
+    if (
+      selectedManagedPackage &&
+      (!selectedManagedAmmoItems.length ||
+        selectedManagedAmmoItems.some(
+          ({ ammoType, ammoQuantity }) =>
+            !RANGE_PACKAGE_CATALOG[AMMUNITION_CATEGORY].some(
+              (item) => item.name === ammoType
+            ) ||
+            !Number.isInteger(Number(ammoQuantity)) ||
+            Number(ammoQuantity) < 1
+        ) ||
+        !Number.isInteger(Number(selectedManagedPackage.targetBoardQuantity)) ||
+        Number(selectedManagedPackage.targetBoardQuantity) < 1)
+    ) {
+      setError(
+        "The selected package has invalid ammunition or target board quantities. Update it in Package Management."
+      );
+      return;
+    }
     const itemsMissingQuantity = selectedPackageContents.some(
       ({ items }) =>
         items.some(
@@ -432,7 +558,7 @@ const isTimeBooked = (date, time) => {
     const isRangePackage = selectedPackageContents.length > 0;
     const bookName = booking.bookName.trim();
     const details = isRangePackage
-      ? getRangePackageDetails(selectedPackageContents)
+      ? rangePackageDetails
       : booking.details.trim();
     const price = Number(booking.price);
 
@@ -479,6 +605,9 @@ if (
         ),
         packageContents: selectedPackageContents,
         packageItems: [],
+        managedPackageId: selectedManagedPackage?.id || "",
+        managedPackageCategory: selectedManagedPackage?.category || "",
+        managedGunName: selectedManagedPackage?.gunName || "",
         bookDate: booking.bookDate,
         bookTime: booking.bookTime,
         memberName:
@@ -572,6 +701,8 @@ if (
   expirationDate: "",
   phoneNumber: "",
       });
+      setManagedPackageCategory("");
+      setSelectedManagedPackageId("");
       setRangePackageCategories([]);
       setSelectedRangePackageItems({});
       setRangePackageItemQuantities({});
@@ -657,9 +788,28 @@ const handleCompleteBooking = async (id) => {
   }
 
   try {
-    await updateDoc(doc(db, "bookings", id), {
-      status: "Completed",
-      completedAt: serverTimestamp(),
+    const bookingRef = doc(db, "bookings", id);
+    await runTransaction(db, async (transaction) => {
+      const bookingSnapshot = await transaction.get(bookingRef);
+      if (!bookingSnapshot.exists()) {
+        throw new Error("This booking could not be found.");
+      }
+
+      const currentBooking = bookingSnapshot.data();
+      if (currentBooking.status !== "Booked") {
+        throw new Error("This booking is no longer active.");
+      }
+
+      const inventoryStockOut = await adjustAmmunitionInventory(
+        transaction,
+        currentBooking,
+        currentBooking
+      );
+      transaction.update(bookingRef, {
+        status: "Completed",
+        completedAt: serverTimestamp(),
+        inventoryStockOut,
+      });
     });
 
     setOpenMenuId(null);
@@ -670,7 +820,11 @@ const handleCompleteBooking = async (id) => {
   } catch (error) {
     console.error("Error completing booking:", error);
 
-    setError("Failed to mark booking as completed.");
+    setError(
+      error instanceof Error
+        ? `Failed to mark booking as completed. ${error.message}`
+        : "Failed to mark booking as completed."
+    );
   }
 };
 
@@ -772,15 +926,75 @@ const handleCancelBooking = async (id) => {
       getRangePackageItemsTotal(contents)
     )}`;
 
-  const hasRangePackageCategories = rangePackageCategories.length > 0;
   const selectedRangePackageContents = getRangePackageContents(
     rangePackageCategories,
     selectedRangePackageItems,
     rangePackageItemQuantities,
     otherRangeItem
   );
-  const rangePackageDetails = selectedRangePackageContents.length
-    ? getRangePackageDetails(selectedRangePackageContents)
+  const selectedManagedPackage = managedPackages.find(
+    (packageItem) => packageItem.id === selectedManagedPackageId
+  );
+  const selectedManagedAmmoItems = selectedManagedPackage
+    ? getManagedPackageAmmoItems(selectedManagedPackage)
+    : [];
+  const managedPackageContents = selectedManagedPackage
+    ? [
+        {
+          category: AMMUNITION_CATEGORY,
+          items: selectedManagedAmmoItems.flatMap(
+            ({ ammoType, ammoQuantity }) => {
+              const ammunition = RANGE_PACKAGE_CATALOG[
+                AMMUNITION_CATEGORY
+              ].find((item) => item.name === ammoType);
+              return ammunition
+                ? [
+                    {
+                      name: ammunition.name,
+                      unitPrice: ammunition.unitPrice,
+                      unit: ammunition.unit,
+                      quantity: Number(ammoQuantity),
+                    },
+                  ]
+                : [];
+            }
+          ),
+        },
+        {
+          category: "Range Fee Rates",
+          items: [
+            {
+              name: "Target Board",
+              unitPrice: RANGE_PACKAGE_CATALOG["Range Fee Rates"].find(
+                (item) => item.name === "Target Board"
+              ).unitPrice,
+              unit: "board",
+              quantity: Number(selectedManagedPackage.targetBoardQuantity),
+            },
+          ],
+        },
+      ].filter(({ items }) => items.length > 0)
+    : [];
+  const combinedContentsByCategory = new Map();
+  [...selectedRangePackageContents, ...managedPackageContents].forEach(
+    ({ category, items }) => {
+      combinedContentsByCategory.set(category, [
+        ...(combinedContentsByCategory.get(category) || []),
+        ...items,
+      ]);
+    }
+  );
+  const bookingPackageContents = [...combinedContentsByCategory].map(
+    ([category, items]) => ({ category, items })
+  );
+  const hasRangePackageCategories = bookingPackageContents.length > 0;
+  const rangePackageDetails = bookingPackageContents.length
+    ? [
+        selectedManagedPackage?.details?.trim(),
+        getRangePackageDetails(bookingPackageContents),
+      ]
+        .filter(Boolean)
+        .join("\n\n")
     : "";
 
   const getBookingDetails = (bookingRecord) => {
@@ -1184,6 +1398,96 @@ const handleCancelBooking = async (id) => {
   </select>
 </div>
 
+
+              <section className="range-package-builder">
+                <div className="range-package-heading">
+                  <h3>Package Management Packages</h3>
+                  <p>
+                    Choose a package category and gun to automatically include
+                    its ammunition in the booking.
+                  </p>
+                </div>
+
+                {managedPackageError && (
+                  <p className="booking-error" role="alert">
+                    {managedPackageError}
+                  </p>
+                )}
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="managed-package-category">
+                      Package category
+                    </label>
+                    <select
+                      id="managed-package-category"
+                      value={managedPackageCategory}
+                      onChange={(event) =>
+                        handleManagedPackageCategoryChange(event.target.value)
+                      }
+                    >
+                      <option value="">Select a package category</option>
+                      {managedPackageCategories.map((category) => (
+                        <option value={category} key={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="managed-package-gun">Gun name</label>
+                    <select
+                      id="managed-package-gun"
+                      value={selectedManagedPackageId}
+                      onChange={(event) =>
+                        handleManagedPackageChange(event.target.value)
+                      }
+                      disabled={!managedPackageCategory}
+                    >
+                      <option value="">Select a gun / package</option>
+                      {packagesInSelectedCategory.map((packageItem) => (
+                        <option value={packageItem.id} key={packageItem.id}>
+                          {packageItem.gunName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {selectedManagedPackage && (
+                  <div className="range-package-category-content">
+                    <h4>{selectedManagedPackage.gunName}</h4>
+                    <p>
+                      {selectedManagedPackage.details || "No package details"}
+                    </p>
+                    <ul>
+                      {selectedManagedAmmoItems.map(
+                        ({ ammoType, ammoQuantity }, index) => {
+                          const ammunition = RANGE_PACKAGE_CATALOG[
+                            AMMUNITION_CATEGORY
+                          ].find((item) => item.name === ammoType);
+                          return (
+                            <li key={`${ammoType}-${index}`}>
+                              <span>
+                                {ammoType} · {ammoQuantity}{" "}
+                                {ammunition?.unit || "rounds"}
+                              </span>
+                            </li>
+                          );
+                        }
+                      )}
+                      <li>
+                        <span>
+                          Target Board ·{" "}
+                          {selectedManagedPackage.targetBoardQuantity || 0}{" "}
+                          boards
+                        </span>
+                      </li>
+                    </ul>
+                  </div>
+                )}
+              </section>
 
               <section className="range-package-builder">
                 <div className="range-package-heading">

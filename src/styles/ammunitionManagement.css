@@ -1,0 +1,207 @@
+.ammunition-management-page {
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 8px 0 40px;
+  color: #172033;
+}
+
+.ammunition-management-header {
+  margin-bottom: 24px;
+}
+
+.ammunition-management-eyebrow {
+  margin: 0 0 7px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+}
+
+.ammunition-management-header h1 {
+  margin: 0;
+  color: #172033;
+  font-size: 30px;
+  letter-spacing: -0.04em;
+}
+
+.ammunition-management-header > div > p:last-child {
+  margin: 7px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.ammunition-feedback {
+  margin: 0 0 14px;
+  font-size: 13px;
+}
+
+.ammunition-error {
+  color: #b91c1c;
+}
+
+.ammunition-success {
+  color: #15803d;
+}
+
+.ammunition-inventory-panel {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 5px 18px rgba(15, 23, 42, 0.05);
+}
+
+.ammunition-inventory-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 19px 22px;
+  border-bottom: 1px solid #edf1f5;
+}
+
+.ammunition-inventory-heading h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 17px;
+}
+
+.ammunition-inventory-heading p {
+  margin: 5px 0 0;
+  color: #8491a3;
+  font-size: 12px;
+}
+
+.ammunition-inventory-heading > span {
+  flex: 0 0 auto;
+  color: #8491a3;
+  font-size: 12px;
+}
+
+.ammunition-list-message {
+  padding: 28px 20px;
+  color: #64748b;
+  font-size: 13px;
+  text-align: center;
+}
+
+.ammunition-table-wrap {
+  overflow-x: auto;
+}
+
+.ammunition-table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.ammunition-table th,
+.ammunition-table td {
+  padding: 13px 18px;
+  border-bottom: 1px solid #edf1f5;
+  vertical-align: middle;
+}
+
+.ammunition-table th {
+  background: #f8fafc;
+  color: #78869a;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.ammunition-table td {
+  color: #526174;
+  font-size: 12px;
+}
+
+.ammunition-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.ammunition-table td strong {
+  color: #172033;
+  font-size: 12px;
+}
+
+.ammunition-stock-level {
+  white-space: nowrap;
+}
+
+.ammunition-add-stock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ammunition-add-stock input {
+  box-sizing: border-box;
+  width: 145px;
+  min-height: 37px;
+  border: 1px solid #dce3eb;
+  border-radius: 7px;
+  padding: 8px 10px;
+  color: #172033;
+  font: inherit;
+  font-size: 12px;
+}
+
+.ammunition-add-stock input:focus {
+  border-color: #64748b;
+  outline: 3px solid rgba(100, 116, 139, 0.12);
+}
+
+.ammunition-add-stock button {
+  min-height: 37px;
+  border: 0;
+  border-radius: 7px;
+  padding: 8px 12px;
+  background: #172033;
+  color: #fff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ammunition-add-stock button:hover:not(:disabled) {
+  background: #334155;
+}
+
+.ammunition-add-stock .ammunition-stock-out-button {
+  background: #b91c1c;
+}
+
+.ammunition-add-stock .ammunition-stock-out-button:hover:not(:disabled) {
+  background: #991b1b;
+}
+
+.ammunition-add-stock button:disabled,
+.ammunition-add-stock input:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+@media (max-width: 600px) {
+  .ammunition-management-header h1 {
+    font-size: 25px;
+  }
+
+  .ammunition-inventory-heading {
+    align-items: flex-start;
+    padding: 17px;
+  }
+
+  .ammunition-inventory-heading > span {
+    font-size: 10px;
+  }
+
+  .ammunition-table th,
+  .ammunition-table td {
+    padding: 12px;
+  }
+}

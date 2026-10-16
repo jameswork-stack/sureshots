@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  addDoc,
   collection,
-  deleteDoc,
   doc,
   getDocs,
+  runTransaction,
   serverTimestamp,
-  updateDoc,
 } from "firebase/firestore";
 
 import { db } from "../firebase";
@@ -19,6 +17,7 @@ import {
   getRangePackageContents,
   getRangePackageItemsTotal,
 } from "../utils/rangePackage";
+import { adjustAmmunitionInventory } from "../utils/ammunitionInventory";
 import "../styles/bookingManagement.css";
 import "../styles/soldManagement.css";
 
@@ -274,19 +273,44 @@ export default function SoldManagement() {
         totalAmount,
         updatedAt: serverTimestamp(),
       };
-      if (editingSaleId) {
-        await updateDoc(doc(db, "rangeSold", editingSaleId), saleData);
-      } else {
-        await addDoc(collection(db, "rangeSold"), {
-          ...saleData,
-          createdAt: serverTimestamp(),
-        });
-      }
+      const saleRef = editingSaleId
+        ? doc(db, "rangeSold", editingSaleId)
+        : doc(collection(db, "rangeSold"));
+
+      await runTransaction(db, async (transaction) => {
+        const saleSnapshot = editingSaleId
+          ? await transaction.get(saleRef)
+          : null;
+        if (saleSnapshot && !saleSnapshot.exists()) {
+          throw new Error("This sold items record could not be found.");
+        }
+
+        const currentSale = saleSnapshot?.data() || null;
+        const inventoryStockOut = await adjustAmmunitionInventory(
+          transaction,
+          currentSale,
+          saleData
+        );
+        const nextSaleData = { ...saleData, inventoryStockOut };
+
+        if (editingSaleId) {
+          transaction.update(saleRef, nextSaleData);
+        } else {
+          transaction.set(saleRef, {
+            ...nextSaleData,
+            createdAt: serverTimestamp(),
+          });
+        }
+      });
       resetForm();
       await loadSoldItems();
     } catch (saveError) {
       console.error("Error saving sold range items:", saveError);
-      setError("Failed to save sold items. Please try again.");
+      setError(
+        saveError instanceof Error
+          ? `Failed to save sold items. ${saveError.message}`
+          : "Failed to save sold items. Please try again."
+      );
     } finally {
       setSaving(false);
     }
@@ -298,11 +322,29 @@ export default function SoldManagement() {
       return;
     }
     try {
-      await deleteDoc(doc(db, "rangeSold", sale.id));
+      const saleRef = doc(db, "rangeSold", sale.id);
+      await runTransaction(db, async (transaction) => {
+        const saleSnapshot = await transaction.get(saleRef);
+        if (!saleSnapshot.exists()) {
+          throw new Error("This sold items record could not be found.");
+        }
+
+        const currentSale = saleSnapshot.data();
+        await adjustAmmunitionInventory(
+          transaction,
+          currentSale,
+          { ...currentSale, packageContents: [], packageItems: [] }
+        );
+        transaction.delete(saleRef);
+      });
       await loadSoldItems();
     } catch (deleteError) {
       console.error("Error deleting sold range items:", deleteError);
-      setError("Failed to delete this sold items record.");
+      setError(
+        deleteError instanceof Error
+          ? `Failed to delete this sold items record. ${deleteError.message}`
+          : "Failed to delete this sold items record."
+      );
     }
   };
 

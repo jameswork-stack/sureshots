@@ -74,6 +74,25 @@ export default function Navbar() {
           Sold Management
         </NavLink>
 
+        <NavLink
+          to="/package-management"
+          onClick={closeMenu}
+          className={({ isActive }) =>
+            isActive ? "nav-link active" : "nav-link"
+          }
+        >
+          Package Management
+        </NavLink>
+
+        <NavLink
+          to="/ammunition-management"
+          onClick={closeMenu}
+          className={({ isActive }) =>
+            isActive ? "nav-link active" : "nav-link"
+          }
+        >
+          Ammunition Management
+        </NavLink>
 
         
         <NavLink

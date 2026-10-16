@@ -10,6 +10,8 @@ import Attendance from "./pages/Attendance";
 import Members from "./pages/Members";
 import DashboardRecords from "./pages/DashboardRecords";
 import SoldManagement from "./pages/SoldManagement";
+import PackageManagement from "./pages/PackageManagement";
+import AmmunitionManagement from "./pages/AmmunitionManagement";
 
 const pageBackgroundStyle = {
   backgroundImage: `url(${backgroundImage})`,
@@ -80,6 +82,24 @@ export default function App() {
           element={
             <MainLayout>
               <SoldManagement />
+            </MainLayout>
+          }
+        />
+
+        <Route
+          path="/package-management"
+          element={
+            <MainLayout>
+              <PackageManagement />
+            </MainLayout>
+          }
+        />
+
+        <Route
+          path="/ammunition-management"
+          element={
+            <MainLayout>
+              <AmmunitionManagement />
             </MainLayout>
           }
         />
