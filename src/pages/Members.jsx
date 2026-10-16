@@ -26,6 +26,7 @@ const EMPTY_MEMBER_FORM = {
   memberNumber: "",
   memberPhoneNumber: "",
   membershipType: "",
+  membershipPrice: "",
   expirationDate: "",
 };
 
@@ -33,7 +34,8 @@ const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-PH", {
     style: "currency",
     currency: "PHP",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(amount);
 
 const formatDate = (dateString) => {
@@ -187,6 +189,11 @@ export default function Members() {
       memberNumber: member.memberNumber || "",
       memberPhoneNumber: member.memberPhoneNumber || "",
       membershipType: member.membershipType || "",
+      membershipPrice: String(
+        member.membershipPrice ??
+          MEMBERSHIP_PRICES[member.membershipType] ??
+          ""
+      ),
       expirationDate: member.expirationDate || "",
     });
     setFormError("");
@@ -210,6 +217,16 @@ export default function Members() {
     setFormError("");
   };
 
+  const handleMembershipTypeChange = (event) => {
+    const membershipType = event.target.value;
+    setMemberForm((current) => ({
+      ...current,
+      membershipType,
+      membershipPrice: String(MEMBERSHIP_PRICES[membershipType] ?? ""),
+    }));
+    setFormError("");
+  };
+
   const handleSaveMember = async (event) => {
     event.preventDefault();
     setFormError("");
@@ -218,6 +235,8 @@ export default function Members() {
     const memberNumber = memberForm.memberNumber.trim();
     const memberPhoneNumber = memberForm.memberPhoneNumber.trim();
     const membershipType = memberForm.membershipType;
+    const membershipPriceInput = memberForm.membershipPrice.trim();
+    const membershipPrice = Number(membershipPriceInput);
     const expirationDate = memberForm.expirationDate;
 
     if (!memberName || !memberNumber || !memberPhoneNumber || !expirationDate) {
@@ -225,9 +244,17 @@ export default function Members() {
       return;
     }
 
-    const membershipPrice = MEMBERSHIP_PRICES[membershipType];
-    if (!membershipPrice) {
+    if (!Object.hasOwn(MEMBERSHIP_PRICES, membershipType)) {
       setFormError("Select a membership type.");
+      return;
+    }
+
+    if (
+      !membershipPriceInput ||
+      !Number.isFinite(membershipPrice) ||
+      membershipPrice < 0
+    ) {
+      setFormError("Enter a valid membership price of 0 or more.");
       return;
     }
 
@@ -594,7 +621,7 @@ export default function Members() {
                     id="membership-type"
                     name="membershipType"
                     value={memberForm.membershipType}
-                    onChange={handleMemberChange}
+                    onChange={handleMembershipTypeChange}
                     required
                   >
                     <option value="" disabled>
@@ -612,18 +639,17 @@ export default function Members() {
                   <label htmlFor="membership-price">Membership price</label>
                   <input
                     id="membership-price"
-                    type="text"
-                    value={
-                      memberForm.membershipType
-                        ? formatCurrency(
-                            MEMBERSHIP_PRICES[memberForm.membershipType]
-                          )
-                        : "Select a membership type"
-                    }
-                    readOnly
-                    aria-readonly="true"
+                    type="number"
+                    name="membershipPrice"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={memberForm.membershipPrice}
+                    onChange={handleMemberChange}
+                    placeholder="Enter membership price"
+                    required
                   />
-                  <small>Price is set automatically from the selected tier.</small>
+                  <small>Enter any amount; the selected tier price is suggested.</small>
                 </div>
 
                 <div className="members-form-group">
