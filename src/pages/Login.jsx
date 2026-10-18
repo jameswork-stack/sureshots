@@ -42,7 +42,7 @@ export default function Login() {
         password
       );
 
-      navigate("/dashboard");
+      navigate("/bookings");
 
     } catch (error) {
       console.error(error);

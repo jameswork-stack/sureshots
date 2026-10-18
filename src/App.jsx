@@ -1,5 +1,15 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useState } from "react";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  Outlet,
+  useNavigate,
+} from "react-router-dom";
+import { collection, getDocs } from "firebase/firestore";
 
+import { db } from "./firebase";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import BookingManagement from "./pages/BookingManagement";
@@ -12,6 +22,7 @@ import DashboardRecords from "./pages/DashboardRecords";
 import SoldManagement from "./pages/SoldManagement";
 import PackageManagement from "./pages/PackageManagement";
 import AmmunitionManagement from "./pages/AmmunitionManagement";
+import "./styles/dashboardAccess.css";
 
 const pageBackgroundStyle = {
   backgroundImage: `url(${backgroundImage})`,
@@ -37,6 +48,100 @@ function MainLayout({ children }) {
   );
 }
 
+function DashboardAccess() {
+  const navigate = useNavigate();
+  const [code, setCode] = useState("");
+  const [error, setError] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError("");
+
+    if (!/^\d+$/.test(code.trim())) {
+      setError("Enter the numeric dashboard code.");
+      return;
+    }
+
+    try {
+      setChecking(true);
+      const snapshot = await getDocs(collection(db, "authentication"));
+
+      if (snapshot.size !== 1) {
+        setError(
+          snapshot.empty
+            ? "Dashboard code is not configured."
+            : "Expected one dashboard code in Authentication."
+        );
+        return;
+      }
+
+      const savedCode = snapshot.docs[0].data().code;
+      if (
+        typeof savedCode !== "number" ||
+        !Number.isSafeInteger(savedCode) ||
+        String(savedCode) !== code.trim()
+      ) {
+        setError("Incorrect dashboard code.");
+        return;
+      }
+
+      setUnlocked(true);
+    } catch (loadError) {
+      console.error("Error verifying dashboard code:", loadError);
+      setError("Unable to verify the dashboard code. Please try again.");
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  if (unlocked) {
+    return (
+      <MainLayout>
+        <Outlet />
+      </MainLayout>
+    );
+  }
+
+  return (
+    <div className="dashboard-access-page">
+      <form className="dashboard-access-card" onSubmit={handleSubmit}>
+        <h1>Dashboard Access</h1>
+        <p>Enter the access code to continue to the dashboard.</p>
+        <label htmlFor="dashboard-access-code">Access code</label>
+        <input
+          id="dashboard-access-code"
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          value={code}
+          onChange={(event) => setCode(event.target.value)}
+          autoFocus
+          required
+        />
+        {error && (
+          <p className="dashboard-access-error" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="dashboard-access-actions">
+          <button
+            type="button"
+            className="dashboard-access-back"
+            onClick={() => navigate("/bookings")}
+          >
+            Back to Bookings
+          </button>
+          <button type="submit" disabled={checking}>
+            {checking ? "Checking..." : "Continue"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -51,21 +156,11 @@ export default function App() {
         {/* Dashboard */}
         <Route
           path="/dashboard"
-          element={
-            <MainLayout>
-              <Dashboard />
-            </MainLayout>
-          }
-        />
-
-        <Route
-          path="/dashboard/records/:metric"
-          element={
-            <MainLayout>
-              <DashboardRecords />
-            </MainLayout>
-          }
-        />
+          element={<DashboardAccess />}
+        >
+          <Route index element={<Dashboard />} />
+          <Route path="records/:metric" element={<DashboardRecords />} />
+        </Route>
 
         {/* Booking Management */}
         <Route

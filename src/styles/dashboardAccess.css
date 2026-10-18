@@ -1,0 +1,79 @@
+.dashboard-access-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+  background: #f3f4f6;
+}
+
+.dashboard-access-card {
+  width: min(100%, 420px);
+  padding: 32px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+}
+
+.dashboard-access-card h1 {
+  margin: 0 0 8px;
+  color: #1f2937;
+  font-size: 24px;
+}
+
+.dashboard-access-card > p {
+  margin: 0 0 24px;
+  color: #6b7280;
+}
+
+.dashboard-access-card label {
+  display: block;
+  margin-bottom: 8px;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.dashboard-access-card input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  font: inherit;
+}
+
+.dashboard-access-error {
+  margin: 10px 0 0 !important;
+  color: #b91c1c !important;
+  font-size: 14px;
+}
+
+.dashboard-access-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.dashboard-access-actions button {
+  padding: 10px 14px;
+  border: 1px solid #15803d;
+  border-radius: 7px;
+  background: #15803d;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dashboard-access-actions button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.dashboard-access-actions .dashboard-access-back {
+  border-color: #d1d5db;
+  background: #fff;
+  color: #374151;
+}
