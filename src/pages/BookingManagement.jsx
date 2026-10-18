@@ -83,6 +83,7 @@ const [selectedRangePackageItems, setSelectedRangePackageItems] = useState({});
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [completionError, setCompletionError] = useState("");
 
   const timeSlots = [
     "10:00 AM - 11:00 AM",
@@ -787,6 +788,8 @@ const handleCompleteBooking = async (id) => {
     return;
   }
 
+  setCompletionError("");
+
   try {
     const bookingRef = doc(db, "bookings", id);
     await runTransaction(db, async (transaction) => {
@@ -820,11 +823,17 @@ const handleCompleteBooking = async (id) => {
   } catch (error) {
     console.error("Error completing booking:", error);
 
-    setError(
-      error instanceof Error
-        ? `Failed to mark booking as completed. ${error.message}`
-        : "Failed to mark booking as completed."
-    );
+    if (error instanceof Error && error.message.startsWith("Not enough stock for ")) {
+      setCompletionError(
+        `Not enough item stock for ${error.message.slice("Not enough stock for ".length)}`
+      );
+    } else {
+      setCompletionError(
+        error instanceof Error
+          ? `Failed to mark booking as completed. ${error.message}`
+          : "Failed to mark booking as completed."
+      );
+    }
   }
 };
 
@@ -906,10 +915,31 @@ const handleCancelBooking = async (id) => {
         items.reduce((categoryTotal, item) => {
           const quantity =
             "quantity" in item ? Number(item.quantity) || 0 : 1;
-          return categoryTotal + Number(item.unitPrice) * quantity;
+          const unitPrice = Number(item.unitPrice) || 0;
+          return categoryTotal + unitPrice * quantity;
         }, 0),
       0
     );
+
+  const getBookingTotalAmount = (bookingRecord) => {
+    const packageContents = Array.isArray(bookingRecord.packageContents)
+      ? bookingRecord.packageContents
+      : [];
+    const packageItems = Array.isArray(bookingRecord.packageItems)
+      ? bookingRecord.packageItems
+      : [];
+    const selectedItemsTotal =
+      packageContents.length > 0
+        ? getRangePackageItemsTotal(packageContents)
+        : packageItems.reduce((total, item) => {
+            const quantity =
+              "quantity" in item ? Number(item.quantity) || 0 : 1;
+            const unitPrice = Number(item.unitPrice) || 0;
+            return total + unitPrice * quantity;
+          }, 0);
+
+    return (Number(bookingRecord.price) || 0) + selectedItemsTotal;
+  };
 
   const getRangePackageDetails = (contents) =>
     `${contents
@@ -1080,6 +1110,11 @@ const handleCancelBooking = async (id) => {
         </button>
 
       </div>
+      {completionError && (
+        <p className="booking-error" role="alert">
+          {completionError}
+        </p>
+      )}
       {/* =========================
           BOOKING LIST
       ========================== */}
@@ -1143,7 +1178,7 @@ const handleCancelBooking = async (id) => {
                   </th>
 
                   <th>
-                    Price
+                    Total Amount
                   </th>
 
                   <th>
@@ -1190,7 +1225,7 @@ const handleCancelBooking = async (id) => {
                     </td>
 
                     <td>
-                      {formatPrice(item.price)}
+                      {formatPrice(getBookingTotalAmount(item))}
                     </td>
 
                     <td>

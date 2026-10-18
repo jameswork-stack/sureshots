@@ -143,10 +143,34 @@ export default function BookingHistory() {
         items.reduce((categoryTotal, item) => {
           const quantity =
             "quantity" in item ? Number(item.quantity) || 0 : 1;
-          return categoryTotal + Number(item.unitPrice) * quantity;
+          const unitPrice = Number(item.unitPrice) || 0;
+          return categoryTotal + unitPrice * quantity;
         }, 0),
       0
     );
+
+  const getSelectedItemsTotal = (booking) => {
+    if (
+      Array.isArray(booking.packageContents) &&
+      booking.packageContents.length > 0
+    ) {
+      return getPackageContentsTotal(booking.packageContents);
+    }
+
+    if (Array.isArray(booking.packageItems)) {
+      return booking.packageItems.reduce((total, item) => {
+        const quantity =
+          "quantity" in item ? Number(item.quantity) || 0 : 1;
+        const unitPrice = Number(item.unitPrice) || 0;
+        return total + unitPrice * quantity;
+      }, 0);
+    }
+
+    return 0;
+  };
+
+  const getBookingTotalAmount = (booking) =>
+    (Number(booking.price) || 0) + getSelectedItemsTotal(booking);
 
   const selectedBooking = bookings.find((booking) => booking.id === openMenuId);
 
@@ -203,7 +227,7 @@ export default function BookingHistory() {
               <thead>
                 <tr>
                   <th>Booking</th>
-                  <th>Price</th>
+                  <th>Total Amount</th>
                   <th>Date</th>
                   <th>Time</th>
                   <th>Status</th>
@@ -220,7 +244,7 @@ export default function BookingHistory() {
                     </td>
 
                     <td>
-                      {formatPrice(item.price)}
+                      {formatPrice(getBookingTotalAmount(item))}
                     </td>
 
                     <td>
@@ -399,10 +423,15 @@ export default function BookingHistory() {
           </div>
 
           <div className="history-view-item">
-            <span>Price</span>
+            <span>Booking Price</span>
             <strong>
               {formatPrice(viewingBooking.price)}
             </strong>
+          </div>
+
+          <div className="history-view-item history-total-amount">
+            <span>Total Amount (booking price + selected items)</span>
+            <strong>{formatPrice(getBookingTotalAmount(viewingBooking))}</strong>
           </div>
 
           <div className="history-view-item">
@@ -473,17 +502,12 @@ export default function BookingHistory() {
               ))}
             </div>
           )}
-          {Array.isArray(viewingBooking.packageContents) &&
-            viewingBooking.packageContents.length > 0 && (
-              <div className="history-package-total">
-                <span>Selected Items Total (informational)</span>
-                <strong>
-                  {formatPrice(
-                    getPackageContentsTotal(viewingBooking.packageContents)
-                  )}
-                </strong>
-              </div>
-            )}
+          <div className="history-package-total">
+            <span>Selected Items Total (informational)</span>
+            <strong>
+              {formatPrice(getSelectedItemsTotal(viewingBooking))}
+            </strong>
+          </div>
         </div>
       )}
 
@@ -578,8 +602,12 @@ export default function BookingHistory() {
                   <dd>{printingBooking.bookTime || "-"}</dd>
                 </div>
                 <div>
-                  <dt>Total Price</dt>
+                  <dt>Booking Price</dt>
                   <dd>{formatPrice(printingBooking.price)}</dd>
+                </div>
+                <div>
+                  <dt>Total Amount</dt>
+                  <dd>{formatPrice(getBookingTotalAmount(printingBooking))}</dd>
                 </div>
               </dl>
             </section>
@@ -605,12 +633,6 @@ export default function BookingHistory() {
                     </ul>
                   </div>
                 ))}
-                <p className="history-print-package-total">
-                  Selected Items Total (informational):{" "}
-                  {formatPrice(
-                    getPackageContentsTotal(printingBooking.packageContents)
-                  )}
-                </p>
               </section>
             ) : Array.isArray(printingBooking.packageItems) &&
               printingBooking.packageItems.length > 0 ? (
@@ -635,6 +657,16 @@ export default function BookingHistory() {
                 <h2>Details</h2>
                 <p>{printingBooking.details || "-"}</p>
               </section>
+            )}
+
+            {((Array.isArray(printingBooking.packageContents) &&
+              printingBooking.packageContents.length > 0) ||
+              (Array.isArray(printingBooking.packageItems) &&
+                printingBooking.packageItems.length > 0)) && (
+              <p className="history-print-package-total">
+                Selected Items Total (informational):{" "}
+                {formatPrice(getSelectedItemsTotal(printingBooking))}
+              </p>
             )}
 
             {printingBooking.customerType === "member" && (

@@ -418,6 +418,18 @@
   color: #1f2937;
 }
 
+.history-view-item.history-total-amount {
+  padding: 12px;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  background: #f0fdf4;
+}
+
+.history-view-item.history-total-amount strong {
+  color: #15803d;
+  font-size: 18px;
+}
+
 .history-view-item p {
   margin: 0;
 
