@@ -139,6 +139,10 @@ export default function Navbar() {
         </button>
 
       </div>
+      <div className="software-info">
+        <p>Booking Management System Ver 1.0.0.1</p>
+        <p>Developed by James Francis Rodriguez</p>
+      </div>
 
     </aside>
   );

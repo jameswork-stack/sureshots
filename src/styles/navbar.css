@@ -15,6 +15,13 @@
   z-index: 1000;
 }
 
+.software-info {
+  font-size: 8.5px;
+  text-align: center;
+  color: rgb(85, 85, 85);
+  font-family: Poppins, sans-serif;
+}
+
 .nav-logo {
     width: 50%;
     padding: 10px;
@@ -62,7 +69,7 @@
 
   border-radius: 8px;
 
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 500;
 
   transition: 0.2s;
