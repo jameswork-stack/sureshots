@@ -89,14 +89,16 @@ const getPackageItems = (booking) => {
   if (Array.isArray(booking.packageContents) && booking.packageContents.length) {
     return booking.packageContents.flatMap((category) =>
       Array.isArray(category.items)
-        ? category.items.map((item) => ({
+        ? category.items.filter((item) => !item.includedInPackagePrice).map((item) => ({
             ...item,
             category: category.category,
           }))
         : []
     );
   }
-  return Array.isArray(booking.packageItems) ? booking.packageItems : [];
+  return Array.isArray(booking.packageItems)
+    ? booking.packageItems.filter((item) => !item.includedInPackagePrice)
+    : [];
 };
 
 const formatCurrency = (amount) =>
@@ -175,6 +177,7 @@ export default function DashboardRecords() {
         return [{
           id: member.id,
           date: formatDate(date),
+          sortDate: date?.getTime() ?? 0,
           record: member.memberName || "Unnamed member",
           details: member.memberNumber
             ? `Member No. ${member.memberNumber} · ${member.membershipType || "Membership"}`
@@ -194,6 +197,7 @@ export default function DashboardRecords() {
         return [{
           id: record.id,
           date: formatDate(date),
+          sortDate: date?.getTime() ?? 0,
           record: record.memberName || record.name || "Attendance record",
           details: record.timeIn ? `Time in ${record.timeIn}` : "-",
           status: record.status,
@@ -246,6 +250,7 @@ export default function DashboardRecords() {
         return [{
           id: sale.id,
           date: formatDate(date),
+          sortDate: date?.getTime() ?? 0,
           record: sale.soldTo || "Walk-in sale",
           details: itemDetails || "Range Package sale",
           status: "Sold",
@@ -287,6 +292,7 @@ export default function DashboardRecords() {
         return [{
           id: booking.id,
           date: formatDate(date),
+          sortDate: date?.getTime() ?? 0,
           record: booking.bookName || "Booking",
           details: booking.memberName || booking.customerName || "-",
           status,
@@ -310,6 +316,7 @@ export default function DashboardRecords() {
           return [{
             id: `${booking.id}-${index}`,
             date: formatDate(date),
+            sortDate: date?.getTime() ?? 0,
             record: booking.bookName || "Booking",
             details: item.name || item.category || "Range item",
             status,
@@ -347,6 +354,7 @@ export default function DashboardRecords() {
       return [{
         id: booking.id,
         date: formatDate(date),
+        sortDate: date?.getTime() ?? 0,
         record: booking.bookName || "Booking",
         details: booking.memberName || booking.customerName || booking.bookTime || "-",
         status,
@@ -365,6 +373,10 @@ export default function DashboardRecords() {
     today,
   ]);
 
+  const sortedRows = useMemo(
+    () => [...rows].sort((first, second) => second.sortDate - first.sortDate),
+    [rows]
+  );
   const totalAmount = rows.reduce((total, row) => total + (row.amount || 0), 0);
   const totalQuantity = rows.reduce(
     (total, row) => total + (row.quantity || 0),
@@ -451,7 +463,7 @@ export default function DashboardRecords() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
+                {sortedRows.map((row) => (
                   <tr key={row.id}>
                     <td>{row.date}</td>
                     <td>{row.record}</td>

@@ -17,6 +17,7 @@ import { formatDisplayDate } from "../utils/date";
 import {
   AMMUNITION_CATEGORY,
   adjustAmmunitionInventory,
+  getCustomAmmunitionTypes,
 } from "../utils/ammunitionInventory";
 import {
   RANGE_PACKAGE_CATALOG,
@@ -37,6 +38,11 @@ const getManagedPackageAmmoItems = (packageItem) =>
         },
       ]
     : [];
+
+const getDiscountedPrice = (price, discountPercent) => {
+  const priceInCents = Math.round((price + Number.EPSILON) * 100);
+  return Math.round((priceInCents * (100 - discountPercent)) / 100) / 100;
+};
 
 export default function BookingManagement() {
   const [showForm, setShowForm] = useState(false);
@@ -59,6 +65,7 @@ const [booking, setBooking] = useState({
   bookName: "",
   details: "",
   price: "",
+  discountPercent: "",
   bookDate: "",
   bookTime: "",
 
@@ -73,9 +80,11 @@ const [booking, setBooking] = useState({
 const [selectedRangePackageItems, setSelectedRangePackageItems] = useState({});
   const [rangePackageItemQuantities, setRangePackageItemQuantities] = useState({});
     const [managedPackages, setManagedPackages] = useState([]);
+  const [customAmmunitionTypes, setCustomAmmunitionTypes] = useState([]);
     const [managedPackageCategory, setManagedPackageCategory] = useState("");
     const [selectedManagedPackageId, setSelectedManagedPackageId] = useState("");
     const [managedPackageError, setManagedPackageError] = useState("");
+  const [ammunitionCatalogError, setAmmunitionCatalogError] = useState("");
     const [otherRangeItem, setOtherRangeItem] = useState({
     details: "",
     price: "",
@@ -99,6 +108,14 @@ const [selectedRangePackageItems, setSelectedRangePackageItems] = useState({});
   const managedPackageCategories = [
     ...new Set(managedPackages.map((packageItem) => packageItem.category)),
   ].filter(Boolean);
+  const ammunitionTypes = [
+    ...RANGE_PACKAGE_CATALOG[AMMUNITION_CATEGORY],
+    ...customAmmunitionTypes,
+  ];
+  const rangePackageCatalog = {
+    ...RANGE_PACKAGE_CATALOG,
+    [AMMUNITION_CATEGORY]: ammunitionTypes,
+  };
   const packagesInSelectedCategory = managedPackages.filter(
     (packageItem) => packageItem.category === managedPackageCategory
   );
@@ -154,6 +171,26 @@ const [selectedRangePackageItems, setSelectedRangePackageItems] = useState({});
     };
 
     fetchManagedPackages();
+  }, []);
+
+  useEffect(() => {
+    let isCurrent = true;
+    getCustomAmmunitionTypes()
+      .then((items) => {
+        if (isCurrent) setCustomAmmunitionTypes(items);
+      })
+      .catch((loadError) => {
+        console.error("Error loading custom ammunition items:", loadError);
+        if (isCurrent) {
+          setAmmunitionCatalogError(
+            "Unable to load custom ammunition items. Please try again."
+          );
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -296,6 +333,7 @@ const isTimeBooked = (date, time) => {
       bookName: "",
       details: "",
       price: "",
+      discountPercent: "",
     }));
     setError("");
   };
@@ -336,6 +374,7 @@ const isTimeBooked = (date, time) => {
     bookName: "",
     details: "",
     price: "",
+    discountPercent: "",
     bookDate: "",
     bookTime: "",
     memberName: "",
@@ -398,7 +437,7 @@ const isTimeBooked = (date, time) => {
         : Array.isArray(item.packageCategories) && item.packageCategories.length > 0
         ? item.packageCategories
         : existingPackageItems.map((packageItem) => packageItem.category)
-    ).filter((category) => RANGE_PACKAGE_CATALOG[category]);
+    ).filter((category) => rangePackageCatalog[category]);
     const existingOtherItem =
       existingPackageContents.find(({ category }) => category === "Others")
         ?.items?.[0] ||
@@ -433,7 +472,7 @@ const isTimeBooked = (date, time) => {
       });
     } else {
       existingPackageCategories.forEach((category) => {
-        selectedItems[category] = RANGE_PACKAGE_CATALOG[category]?.map(
+        selectedItems[category] = rangePackageCatalog[category]?.map(
           (packageItem) => packageItem.name
         ) || [];
       });
@@ -460,7 +499,9 @@ const isTimeBooked = (date, time) => {
         (item.memberName || item.memberNumber ? "member" : "regular"),
       bookName: item.bookName || "",
       details: item.details || "",
-      price: item.price ?? "",
+      price: item.originalPrice ?? item.price ?? "",
+      discountPercent:
+        Number(item.discountPercent) > 0 ? String(item.discountPercent) : "",
       bookDate: item.bookDate || "",
       bookTime: item.bookTime || "",
       memberName: item.memberName || "",
@@ -529,7 +570,7 @@ const isTimeBooked = (date, time) => {
       (!selectedManagedAmmoItems.length ||
         selectedManagedAmmoItems.some(
           ({ ammoType, ammoQuantity }) =>
-            !RANGE_PACKAGE_CATALOG[AMMUNITION_CATEGORY].some(
+            !ammunitionTypes.some(
               (item) => item.name === ammoType
             ) ||
             !Number.isInteger(Number(ammoQuantity)) ||
@@ -561,15 +602,27 @@ const isTimeBooked = (date, time) => {
     const details = isRangePackage
       ? rangePackageDetails
       : booking.details.trim();
-    const price = Number(booking.price);
+    const originalPrice = Number(booking.price);
+    const discountPercent =
+      booking.discountPercent === "" ? 0 : Number(booking.discountPercent);
+
+    if (
+      booking.discountPercent !== "" &&
+      (!Number.isInteger(discountPercent) ||
+        discountPercent < 1 ||
+        discountPercent > 100)
+    ) {
+      setError("Discount must be a whole percentage from 1 to 100.");
+      return;
+    }
 
     if (
   !booking.customerType ||
   !bookName ||
   !details ||
   booking.price === "" ||
-  !Number.isFinite(price) ||
-  price < 0 ||
+  !Number.isFinite(originalPrice) ||
+  originalPrice < 0 ||
   !booking.bookDate ||
       !booking.bookTime
     ) {
@@ -591,6 +644,9 @@ if (
   return;
 }
 
+    const price = getDiscountedPrice(originalPrice, discountPercent);
+    const discountAmount = Number((originalPrice - price).toFixed(2));
+
     try {
 
       setSaving(true);
@@ -600,6 +656,9 @@ if (
         bookName,
         details,
         price,
+        originalPrice,
+        discountPercent,
+        discountAmount,
         packageCategory: isRangePackage ? "Range Package" : "",
         packageCategories: selectedPackageContents.map(
           ({ category }) => category
@@ -693,6 +752,7 @@ if (
         bookName: "",
         details: "",
         price: "",
+        discountPercent: "",
         bookDate: "",
         bookTime: "",
 
@@ -896,7 +956,8 @@ const handleCancelBooking = async (id) => {
       : `${formatPrice(item.unitPrice)} per ${item.unit}`;
 
   const getRangePackageItemDetails = (item, category) =>
-    RANGE_PACKAGE_QUANTITY_ITEMS[category]?.includes(item.name)
+    (category === AMMUNITION_CATEGORY ||
+      RANGE_PACKAGE_QUANTITY_ITEMS[category]?.includes(item.name))
       ? item.quantity
         ? category === "Range Fee Rates" && item.unit === "booking"
           ? `${item.quantity} ${item.quantity === 1 ? "booking" : "bookings"}`
@@ -913,6 +974,10 @@ const handleCancelBooking = async (id) => {
       (total, { items }) =>
         total +
         items.reduce((categoryTotal, item) => {
+          if (item.includedInPackagePrice) {
+            return categoryTotal;
+          }
+
           const quantity =
             "quantity" in item ? Number(item.quantity) || 0 : 1;
           const unitPrice = Number(item.unitPrice) || 0;
@@ -932,6 +997,10 @@ const handleCancelBooking = async (id) => {
       packageContents.length > 0
         ? getRangePackageItemsTotal(packageContents)
         : packageItems.reduce((total, item) => {
+            if (item.includedInPackagePrice) {
+              return total;
+            }
+
             const quantity =
               "quantity" in item ? Number(item.quantity) || 0 : 1;
             const unitPrice = Number(item.unitPrice) || 0;
@@ -960,7 +1029,8 @@ const handleCancelBooking = async (id) => {
     rangePackageCategories,
     selectedRangePackageItems,
     rangePackageItemQuantities,
-    otherRangeItem
+    otherRangeItem,
+    rangePackageCatalog
   );
   const selectedManagedPackage = managedPackages.find(
     (packageItem) => packageItem.id === selectedManagedPackageId
@@ -968,15 +1038,33 @@ const handleCancelBooking = async (id) => {
   const selectedManagedAmmoItems = selectedManagedPackage
     ? getManagedPackageAmmoItems(selectedManagedPackage)
     : [];
+  const enteredPackagePrice = Number(booking.price);
+  const formDiscountPercent =
+    booking.discountPercent === "" ? 0 : Number(booking.discountPercent);
+  const isValidFormDiscount =
+    booking.discountPercent === "" ||
+    (Number.isInteger(formDiscountPercent) &&
+      formDiscountPercent >= 1 &&
+      formDiscountPercent <= 100);
+  const discountedPackagePrice =
+    booking.price !== "" &&
+    Number.isFinite(enteredPackagePrice) &&
+    isValidFormDiscount
+      ? getDiscountedPrice(enteredPackagePrice, formDiscountPercent)
+      : null;
+  const formDiscountAmount =
+    discountedPackagePrice == null
+      ? 0
+      : Number((enteredPackagePrice - discountedPackagePrice).toFixed(2));
   const managedPackageContents = selectedManagedPackage
     ? [
         {
           category: AMMUNITION_CATEGORY,
           items: selectedManagedAmmoItems.flatMap(
             ({ ammoType, ammoQuantity }) => {
-              const ammunition = RANGE_PACKAGE_CATALOG[
-                AMMUNITION_CATEGORY
-              ].find((item) => item.name === ammoType);
+              const ammunition = ammunitionTypes.find(
+                (item) => item.name === ammoType
+              );
               return ammunition
                 ? [
                     {
@@ -984,6 +1072,7 @@ const handleCancelBooking = async (id) => {
                       unitPrice: ammunition.unitPrice,
                       unit: ammunition.unit,
                       quantity: Number(ammoQuantity),
+                      includedInPackagePrice: true,
                     },
                   ]
                 : [];
@@ -1000,6 +1089,7 @@ const handleCancelBooking = async (id) => {
               ).unitPrice,
               unit: "board",
               quantity: Number(selectedManagedPackage.targetBoardQuantity),
+              includedInPackagePrice: true,
             },
           ],
         },
@@ -1499,9 +1589,9 @@ const handleCancelBooking = async (id) => {
                     <ul>
                       {selectedManagedAmmoItems.map(
                         ({ ammoType, ammoQuantity }, index) => {
-                          const ammunition = RANGE_PACKAGE_CATALOG[
-                            AMMUNITION_CATEGORY
-                          ].find((item) => item.name === ammoType);
+                          const ammunition = ammunitionTypes.find(
+                            (item) => item.name === ammoType
+                          );
                           return (
                             <li key={`${ammoType}-${index}`}>
                               <span>
@@ -1532,6 +1622,12 @@ const handleCancelBooking = async (id) => {
                     to include. Enter the booking price separately.
                   </p>
                 </div>
+
+                {ammunitionCatalogError && (
+                  <p className="booking-error" role="alert">
+                    {ammunitionCatalogError}
+                  </p>
+                )}
 
                 <div className="range-package-category-options">
                   {Object.keys(RANGE_PACKAGE_CATALOG).map((category) => (
@@ -1597,7 +1693,7 @@ const handleCancelBooking = async (id) => {
                       </div>
                     ) : (
                       <ul>
-                        {RANGE_PACKAGE_CATALOG[category].map((item) => (
+                        {rangePackageCatalog[category].map((item) => (
                           <li key={item.name}>
                             <label className="range-package-item-option">
                               <input
@@ -1619,9 +1715,10 @@ const handleCancelBooking = async (id) => {
                             <strong>
                               {getRangePackageItemRate(item)}
                             </strong>
-                            {RANGE_PACKAGE_QUANTITY_ITEMS[category]?.includes(
-                              item.name
-                            ) &&
+                            {(category === AMMUNITION_CATEGORY ||
+                              RANGE_PACKAGE_QUANTITY_ITEMS[category]?.includes(
+                                item.name
+                              )) &&
                               selectedRangePackageItems[category]?.includes(
                                 item.name
                               ) && (
@@ -1677,28 +1774,59 @@ const handleCancelBooking = async (id) => {
 
               {/* PRICE */}
 
-              <div className="form-group">
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="booking-package-price">Package Price</label>
+                  <input
+                    id="booking-package-price"
+                    type="number"
+                    name="price"
+                    placeholder="Enter the package price"
+                    min="0"
+                    step="0.01"
+                    value={booking.price}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
 
-                <label>
-                  {hasRangePackageCategories ? "Package Price" : "Package Price"}
-                </label>
-
-                <input
-                  type="number"
-                  name="price"
-                  placeholder={
-                    hasRangePackageCategories
-                      ? "Enter the package price"
-                      : "Enter booking price"
-                  }
-                  min="0"
-                  step="0.01"
-                  value={booking.price}
-                  onChange={handleChange}
-                  required
-                />
-
+                <div className="form-group">
+                  <label htmlFor="booking-discount-percent">Discount (%)</label>
+                  <input
+                    id="booking-discount-percent"
+                    type="number"
+                    name="discountPercent"
+                    placeholder="1-100"
+                    min="1"
+                    max="100"
+                    step="1"
+                    value={booking.discountPercent}
+                    onChange={handleChange}
+                    aria-describedby="booking-discount-hint"
+                  />
+                  <small id="booking-discount-hint">
+                    Leave blank for no discount.
+                  </small>
+                </div>
               </div>
+
+              {discountedPackagePrice != null && (
+                <div
+                  className="booking-discount-summary"
+                  id="booking-discount-summary"
+                  aria-live="polite"
+                >
+                  <span>
+                    {formDiscountPercent > 0
+                      ? `Price after ${formDiscountPercent}% discount`
+                      : "Package price"}
+                  </span>
+                  <strong>{formatPrice(discountedPackagePrice)}</strong>
+                  {formDiscountPercent > 0 && (
+                    <span>You save {formatPrice(formDiscountAmount)}</span>
+                  )}
+                </div>
+              )}
 
 
               {/* DETAILS */}
@@ -2004,11 +2132,34 @@ const handleCancelBooking = async (id) => {
           </div>
 
           <div className="view-item">
-            <span>Price</span>
+            <span>
+              {Number(viewingBooking.discountPercent) > 0
+                ? "Price after discount"
+                : "Price"}
+            </span>
             <strong>
               {formatPrice(viewingBooking.price)}
             </strong>
           </div>
+
+          {Number(viewingBooking.discountPercent) > 0 && (
+            <>
+              <div className="view-item">
+                <span>Original Package Price</span>
+                <strong>
+                  {formatPrice(
+                    viewingBooking.originalPrice ?? viewingBooking.price
+                  )}
+                </strong>
+              </div>
+              <div className="view-item">
+                <span>Discount ({viewingBooking.discountPercent}%)</span>
+                <strong>
+                  -{formatPrice(viewingBooking.discountAmount)}
+                </strong>
+              </div>
+            </>
+          )}
 
           <div className="view-item">
             <span>Booking Date</span>
@@ -2191,8 +2342,28 @@ const handleCancelBooking = async (id) => {
                 <dt>Booking Time</dt>
                 <dd>{printingBooking.bookTime || "-"}</dd>
               </div>
+              {Number(printingBooking.discountPercent) > 0 && (
+                <>
+                  <div>
+                    <dt>Original Package Price</dt>
+                    <dd>
+                      {formatPrice(
+                        printingBooking.originalPrice ?? printingBooking.price
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Discount ({printingBooking.discountPercent}%)</dt>
+                    <dd>-{formatPrice(printingBooking.discountAmount)}</dd>
+                  </div>
+                </>
+              )}
               <div>
-                <dt>Total Price</dt>
+                <dt>
+                  {Number(printingBooking.discountPercent) > 0
+                    ? "Price after discount"
+                    : "Total Price"}
+                </dt>
                 <dd>{formatPrice(printingBooking.price)}</dd>
               </div>
             </dl>

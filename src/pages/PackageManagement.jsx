@@ -11,6 +11,9 @@ import {
 } from "firebase/firestore";
 
 import { db } from "../firebase";
+import {
+  getCustomAmmunitionTypes,
+} from "../utils/ammunitionInventory";
 import { RANGE_PACKAGE_CATALOG } from "../utils/rangePackage";
 import "../styles/packageManagement.css";
 
@@ -25,7 +28,7 @@ const EMPTY_PACKAGE = {
   price: "",
 };
 
-const ammunitionTypes = RANGE_PACKAGE_CATALOG["Ammunition Prices"];
+const builtInAmmunitionTypes = RANGE_PACKAGE_CATALOG["Ammunition Prices"];
 const targetBoardItem = RANGE_PACKAGE_CATALOG["Range Fee Rates"].find(
   (item) => item.name === "Target Board"
 );
@@ -39,6 +42,7 @@ const formatCurrency = (amount) =>
 
 export default function PackageManagement() {
   const [packages, setPackages] = useState([]);
+  const [customAmmunitionTypes, setCustomAmmunitionTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pageError, setPageError] = useState("");
@@ -47,6 +51,10 @@ export default function PackageManagement() {
   const [editingPackageId, setEditingPackageId] = useState(null);
   const [openMenu, setOpenMenu] = useState(null);
   const [packageForm, setPackageForm] = useState(EMPTY_PACKAGE);
+  const ammunitionTypes = useMemo(
+    () => [...builtInAmmunitionTypes, ...customAmmunitionTypes],
+    [customAmmunitionTypes]
+  );
 
   useEffect(() => {
     const loadPackages = async () => {
@@ -70,6 +78,24 @@ export default function PackageManagement() {
     };
 
     loadPackages();
+  }, []);
+
+  useEffect(() => {
+    let isCurrent = true;
+    getCustomAmmunitionTypes()
+      .then((items) => {
+        if (isCurrent) setCustomAmmunitionTypes(items);
+      })
+      .catch((loadError) => {
+        console.error("Error loading custom ammunition items:", loadError);
+        if (isCurrent) {
+          setPageError("Unable to load custom ammunition items.");
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+    };
   }, []);
 
   const packagesByCategory = useMemo(

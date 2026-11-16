@@ -53,10 +53,11 @@ export const getRangePackageContents = (
   categories,
   selectedItems,
   quantities,
-  otherRangeItem
+  otherRangeItem,
+  catalog = RANGE_PACKAGE_CATALOG
 ) =>
   categories
-    .filter((category) => RANGE_PACKAGE_CATALOG[category])
+    .filter((category) => catalog[category])
     .map((category) => ({
       category,
       items:
@@ -70,14 +71,15 @@ export const getRangePackageContents = (
                 pricing: "custom-flat",
               },
             ]
-          : RANGE_PACKAGE_CATALOG[category]
+            : catalog[category]
               .filter((item) => selectedItems[category]?.includes(item.name))
               .map((item) => ({
                 name: item.name,
                 unitPrice: item.unitPrice,
                 unit: item.unit,
                 pricing: item.pricing || "",
-                ...(RANGE_PACKAGE_QUANTITY_ITEMS[category]?.includes(item.name)
+                ...(category === "Ammunition Prices" ||
+                RANGE_PACKAGE_QUANTITY_ITEMS[category]?.includes(item.name)
                   ? { quantity: Number(quantities[category]?.[item.name]) || 0 }
                   : {}),
               })),

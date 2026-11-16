@@ -333,6 +333,31 @@
   gap: 15px;
 }
 
+.booking-discount-hint {
+  display: block;
+  margin-top: 6px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.booking-discount-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: -8px 0 18px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 13px;
+}
+
+.booking-discount-summary strong {
+  margin-left: auto;
+  font-size: 16px;
+}
+
 .range-package-builder {
   margin: 8px 0 24px;
   padding: 18px;

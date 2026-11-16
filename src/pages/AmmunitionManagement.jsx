@@ -5,6 +5,8 @@ import { db } from "../firebase";
 import {
   addAmmunitionStock,
   AMMUNITION_INVENTORY_COLLECTION,
+  createAmmunitionItem,
+  CUSTOM_AMMUNITION_UNITS,
   getAmmunitionInventoryId,
   getAmmunitionUnitLabel,
   removeAmmunitionStock,
@@ -16,33 +18,75 @@ const ammunitionTypes = RANGE_PACKAGE_CATALOG["Ammunition Prices"];
 const targetBoardItem = RANGE_PACKAGE_CATALOG["Range Fee Rates"].find(
   (item) => item.name === "Target Board"
 );
-const inventoryItems = [...ammunitionTypes, targetBoardItem];
+const EMPTY_AMMUNITION_ITEM = {
+  name: "",
+  unit: "piece",
+  unitPrice: "",
+  initialStock: "0",
+};
 
 export default function AmmunitionManagement() {
   const [stockLevels, setStockLevels] = useState({});
+  const [customAmmunitionTypes, setCustomAmmunitionTypes] = useState([]);
   const [stockInputs, setStockInputs] = useState({});
   const [loading, setLoading] = useState(true);
   const [savingName, setSavingName] = useState("");
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newAmmunitionItem, setNewAmmunitionItem] = useState(
+    EMPTY_AMMUNITION_ITEM
+  );
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [success, setSuccess] = useState("");
+  const inventoryItems = [
+    ...ammunitionTypes,
+    ...customAmmunitionTypes,
+    targetBoardItem,
+  ];
+  const startingStockUnit =
+    newAmmunitionItem.unit === "piece" ? "pieces" : "rounds";
 
   useEffect(() => {
     const unsubscribe = onSnapshot(
       collection(db, AMMUNITION_INVENTORY_COLLECTION),
       (snapshot) => {
         const records = {};
+        const customItems = [];
         try {
           snapshot.docs.forEach((inventoryDoc) => {
-            const quantity = Number(inventoryDoc.data().quantity);
+            const data = inventoryDoc.data();
+            const quantity = Number(data.quantity);
             if (!Number.isInteger(quantity) || quantity < 0) {
               throw new Error(
-                `Invalid stock quantity for ${inventoryDoc.data().name || inventoryDoc.id}.`
+                `Invalid stock quantity for ${data.name || inventoryDoc.id}.`
               );
             }
             records[inventoryDoc.id] = quantity;
+            if (data.custom === true) {
+              const unitPrice = Number(data.unitPrice);
+              if (
+                typeof data.name !== "string" ||
+                !data.name.trim() ||
+                !CUSTOM_AMMUNITION_UNITS.includes(data.unit) ||
+                !Number.isFinite(unitPrice) ||
+                unitPrice < 0
+              ) {
+                throw new Error(`Invalid custom ammunition item ${inventoryDoc.id}.`);
+              }
+              customItems.push({
+                name: data.name.trim(),
+                unit: data.unit,
+                unitPrice,
+                custom: true,
+              });
+            }
           });
+          customItems.sort((first, second) =>
+            first.name.localeCompare(second.name)
+          );
           setStockLevels(records);
+          setCustomAmmunitionTypes(customItems);
           setLoadError("");
         } catch (loadError) {
           console.error("Error reading ammunition inventory:", loadError);
@@ -60,6 +104,46 @@ export default function AmmunitionManagement() {
 
     return unsubscribe;
   }, []);
+
+  const handleCreateItem = async (event) => {
+    event.preventDefault();
+    setError("");
+    setSuccess("");
+
+    const name = newAmmunitionItem.name.trim();
+    const unitPrice = Number(newAmmunitionItem.unitPrice);
+    const initialStock = Number(newAmmunitionItem.initialStock);
+    if (
+      inventoryItems.some(
+        (item) => item.name.toLowerCase() === name.toLowerCase()
+      )
+    ) {
+      setError("An inventory item with this name already exists.");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      await createAmmunitionItem({
+        name,
+        unit: newAmmunitionItem.unit,
+        unitPrice,
+        initialStock,
+      });
+      setNewAmmunitionItem(EMPTY_AMMUNITION_ITEM);
+      setShowCreateForm(false);
+      setSuccess(`Created ${name} ammunition item.`);
+    } catch (createError) {
+      console.error("Error creating ammunition item:", createError);
+      setError(
+        createError instanceof Error
+          ? `Unable to create ammunition item. ${createError.message}`
+          : "Unable to create ammunition item. Please try again."
+      );
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const handleAddStock = async (ammunitionName) => {
     setError("");
@@ -81,7 +165,10 @@ export default function AmmunitionManagement() {
       }));
       setStockInputs((current) => ({ ...current, [ammunitionName]: "" }));
       setSuccess(
-        `Added ${amount} ${getAmmunitionUnitLabel(ammunitionName)} for ${ammunitionName}.`
+        `Added ${amount} ${getAmmunitionUnitLabel(
+          ammunitionName,
+          customAmmunitionTypes
+        )} for ${ammunitionName}.`
       );
     } catch (saveError) {
       console.error("Error adding ammunition stock:", saveError);
@@ -115,7 +202,10 @@ export default function AmmunitionManagement() {
       }));
       setStockInputs((current) => ({ ...current, [ammunitionName]: "" }));
       setSuccess(
-        `Stocked out ${amount} ${getAmmunitionUnitLabel(ammunitionName)} for ${ammunitionName}.`
+        `Stocked out ${amount} ${getAmmunitionUnitLabel(
+          ammunitionName,
+          customAmmunitionTypes
+        )} for ${ammunitionName}.`
       );
     } catch (stockOutError) {
       console.error("Error stocking out ammunition:", stockOutError);
@@ -163,8 +253,116 @@ export default function AmmunitionManagement() {
               tracked individually.
             </p>
           </div>
-          <span>{inventoryItems.length} inventory items</span>
+          <div className="ammunition-inventory-actions">
+            <span>{inventoryItems.length} inventory items</span>
+            <button
+              className="ammunition-add-item-button"
+              type="button"
+              aria-expanded={showCreateForm}
+              aria-controls="create-ammunition-form"
+              onClick={() => {
+                setError("");
+                setSuccess("");
+                setShowCreateForm((current) => !current);
+              }}
+            >
+              Add ammunition item
+            </button>
+          </div>
         </div>
+
+        {showCreateForm && (
+          <form
+            id="create-ammunition-form"
+            className="ammunition-create-form"
+            onSubmit={handleCreateItem}
+          >
+            <div className="ammunition-create-fields">
+              <label>
+                Item name
+                <input
+                  type="text"
+                  value={newAmmunitionItem.name}
+                  onChange={(event) =>
+                    setNewAmmunitionItem((current) => ({
+                      ...current,
+                      name: event.target.value,
+                    }))
+                  }
+                  maxLength="100"
+                  required
+                />
+              </label>
+              <label>
+                Unit
+                <select
+                  value={newAmmunitionItem.unit}
+                  onChange={(event) =>
+                    setNewAmmunitionItem((current) => ({
+                      ...current,
+                      unit: event.target.value,
+                    }))
+                  }
+                >
+                  {CUSTOM_AMMUNITION_UNITS.map((unit) => (
+                    <option key={unit} value={unit}>
+                      {unit}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Price per {newAmmunitionItem.unit}
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={newAmmunitionItem.unitPrice}
+                  onChange={(event) =>
+                    setNewAmmunitionItem((current) => ({
+                      ...current,
+                      unitPrice: event.target.value,
+                    }))
+                  }
+                  required
+                />
+              </label>
+              <label>
+                Starting stock ({startingStockUnit})
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={newAmmunitionItem.initialStock}
+                  onChange={(event) =>
+                    setNewAmmunitionItem((current) => ({
+                      ...current,
+                      initialStock: event.target.value,
+                    }))
+                  }
+                  required
+                />
+              </label>
+            </div>
+            <div className="ammunition-create-actions">
+              <button
+                className="ammunition-create-cancel"
+                type="button"
+                onClick={() => {
+                  setNewAmmunitionItem(EMPTY_AMMUNITION_ITEM);
+                  setShowCreateForm(false);
+                  setError("");
+                }}
+                disabled={creating}
+              >
+                Cancel
+              </button>
+              <button type="submit" disabled={creating}>
+                {creating ? "Creating..." : "Create item"}
+              </button>
+            </div>
+          </form>
+        )}
 
         {loading ? (
           <p className="ammunition-list-message" role="status">
@@ -187,7 +385,10 @@ export default function AmmunitionManagement() {
               <tbody>
                 {inventoryItems.map((item) => {
                   const inventoryId = getAmmunitionInventoryId(item.name);
-                  const unit = getAmmunitionUnitLabel(item.name);
+                  const unit = getAmmunitionUnitLabel(
+                    item.name,
+                    customAmmunitionTypes
+                  );
                   const isSaving = savingName === item.name;
                   return (
                     <tr key={item.name}>

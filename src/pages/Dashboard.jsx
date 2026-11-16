@@ -13,6 +13,14 @@ const getTodayDate = () => {
   return `${year}-${month}-${day}`;
 };
 
+const getStartOfCurrentMonthDate = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+
+  return `${year}-${month}-01`;
+};
+
 const formatDateKey = (date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -73,8 +81,8 @@ export default function Dashboard() {
   const [salesData, setSalesData] = useState([]);
 
   const [salesFilter, setSalesFilter] = useState("7days");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateFrom, setDateFrom] = useState(getStartOfCurrentMonthDate);
+  const [dateTo, setDateTo] = useState(getTodayDate);
 
   const [loading, setLoading] = useState(true);
 
@@ -147,6 +155,22 @@ export default function Dashboard() {
     }).format(amount);
   };
 
+  const formatCompactCurrency = (amount) => {
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(amount);
+  };
+
+  const formatCompactAmount = (amount) => {
+    return new Intl.NumberFormat("en-PH", {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(amount);
+  };
+
 
   // ==========================================
   // FORMAT DATE
@@ -209,6 +233,10 @@ export default function Dashboard() {
               }
 
               category.items.forEach((item) => {
+                if (item.includedInPackagePrice) {
+                  return;
+                }
+
                 const quantity =
                   item.quantity == null ? 1 : Number(item.quantity);
 
@@ -244,6 +272,10 @@ export default function Dashboard() {
             });
           } else if (Array.isArray(booking.packageItems)) {
             booking.packageItems.forEach((item) => {
+              if (item.includedInPackagePrice) {
+                return;
+              }
+
               const quantity =
                 item.quantity == null ? 1 : Number(item.quantity);
 
@@ -1118,19 +1150,19 @@ export default function Dashboard() {
           <div className="sales-y-axis">
 
             <span>
-              {formatCurrency(
+              {formatCompactCurrency(
                 maxSales
               )}
             </span>
 
             <span>
-              {formatCurrency(
+              {formatCompactCurrency(
                 maxSales / 2
               )}
             </span>
 
             <span>
-              ₱0.00
+              {formatCompactCurrency(0)}
             </span>
 
           </div>
@@ -1180,8 +1212,8 @@ export default function Dashboard() {
 
                       <div className="sales-bar-value">
 
-                        {item.total > 0
-                          ? formatCurrency(
+                        {item.total > 0 && salesData.length <= 15
+                          ? formatCompactAmount(
                               item.total
                             )
                           : ""}
@@ -1195,6 +1227,8 @@ export default function Dashboard() {
 
                         <div
                           className="sales-bar"
+                          role="img"
+                          aria-label={`${item.dateLabel}: ${formatCurrency(item.total)}`}
                           style={{
                             height: `${barHeight}%`,
                           }}

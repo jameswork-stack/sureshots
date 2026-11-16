@@ -71,7 +71,7 @@ export default function Login() {
           Login to your account
         </p>
 
-        <form onSubmit={handleLogin}>
+        <form onSubmit={handleLogin} autoComplete="off">
 
           <div className="input-group">
             <label>Username</label>
@@ -79,6 +79,7 @@ export default function Login() {
             <input
               type="email"
               placeholder="Enter your username"
+              autoComplete="off"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
             />
@@ -90,6 +91,7 @@ export default function Login() {
             <input
               type="password"
               placeholder="Enter your password"
+              autoComplete="off"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />

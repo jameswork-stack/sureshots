@@ -1053,7 +1053,9 @@
 
 .sales-bar-value {
   color: #64748b;
-  font-size: 10px;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .sales-bar {
@@ -1168,6 +1170,10 @@
   .top-packages-card {
     padding: 16px;
   }
+
+  .sales-bar-value {
+    display: none;
+  }
 }
 
 @media (max-width: 420px) {
@@ -1200,7 +1206,7 @@
 }
 
 .dashboard-cards {
-  grid-template-columns: repeat(8, minmax(180px, 1fr));
+  grid-template-columns: repeat(8, minmax(280px, 1fr));
   overflow-x: auto;
   gap: 16px;
   padding: 4px 4px 14px;
@@ -1231,8 +1237,13 @@
 }
 
 .dashboard-cards > .dashboard-card {
-  min-width: 180px;
+  min-width: 280px;
   scroll-snap-align: start;
+}
+
+.dashboard-card-content h2 {
+  font-size: clamp(20px, 1.6vw, 28px);
+  white-space: nowrap;
 }
 
 .dashboard-card-link {

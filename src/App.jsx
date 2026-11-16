@@ -106,7 +106,11 @@ function DashboardAccess() {
 
   return (
     <div className="dashboard-access-page">
-      <form className="dashboard-access-card" onSubmit={handleSubmit}>
+      <form
+        className="dashboard-access-card"
+        onSubmit={handleSubmit}
+        autoComplete="off"
+      >
         <h1>Dashboard Access</h1>
         <p>Enter the access code to continue to the dashboard.</p>
         <label htmlFor="dashboard-access-code">Access code</label>

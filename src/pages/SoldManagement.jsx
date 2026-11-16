@@ -17,7 +17,11 @@ import {
   getRangePackageContents,
   getRangePackageItemsTotal,
 } from "../utils/rangePackage";
-import { adjustAmmunitionInventory } from "../utils/ammunitionInventory";
+import {
+  AMMUNITION_CATEGORY,
+  adjustAmmunitionInventory,
+  getCustomAmmunitionTypes,
+} from "../utils/ammunitionInventory";
 import "../styles/bookingManagement.css";
 import "../styles/soldManagement.css";
 
@@ -54,6 +58,17 @@ export default function SoldManagement() {
   const [selectedItems, setSelectedItems] = useState({});
   const [quantities, setQuantities] = useState({});
   const [otherItem, setOtherItem] = useState(emptyOtherItem);
+  const [customAmmunitionTypes, setCustomAmmunitionTypes] = useState([]);
+  const rangePackageCatalog = useMemo(
+    () => ({
+      ...RANGE_PACKAGE_CATALOG,
+      [AMMUNITION_CATEGORY]: [
+        ...RANGE_PACKAGE_CATALOG[AMMUNITION_CATEGORY],
+        ...customAmmunitionTypes,
+      ],
+    }),
+    [customAmmunitionTypes]
+  );
 
   const loadSoldItems = useCallback(async () => {
     try {
@@ -80,6 +95,22 @@ export default function SoldManagement() {
   useEffect(() => {
     loadSoldItems();
   }, [loadSoldItems]);
+
+  useEffect(() => {
+    let isCurrent = true;
+    getCustomAmmunitionTypes()
+      .then((items) => {
+        if (isCurrent) setCustomAmmunitionTypes(items);
+      })
+      .catch((loadError) => {
+        console.error("Error loading custom ammunition items:", loadError);
+        if (isCurrent) setError("Unable to load custom ammunition items.");
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!openMenuId) return undefined;
@@ -152,8 +183,15 @@ export default function SoldManagement() {
   };
 
   const packageContents = useMemo(
-    () => getRangePackageContents(categories, selectedItems, quantities, otherItem),
-    [categories, selectedItems, quantities, otherItem]
+    () =>
+      getRangePackageContents(
+        categories,
+        selectedItems,
+        quantities,
+        otherItem,
+        rangePackageCatalog
+      ),
+    [categories, selectedItems, quantities, otherItem, rangePackageCatalog]
   );
   const totalAmount = getRangePackageItemsTotal(packageContents);
 
@@ -680,7 +718,7 @@ export default function SoldManagement() {
                       </div>
                     ) : (
                       <ul>
-                        {RANGE_PACKAGE_CATALOG[category].map((item) => (
+                        {rangePackageCatalog[category].map((item) => (
                           <li key={item.name}>
                             <label className="range-package-item-option">
                               <input
@@ -695,7 +733,8 @@ export default function SoldManagement() {
                                 ? `${formatCurrency(item.unitPrice)} flat rate`
                                 : `${formatCurrency(item.unitPrice)} per ${item.unit}`}
                             </strong>
-                            {RANGE_PACKAGE_QUANTITY_ITEMS[category]?.includes(item.name) &&
+                            {(category === AMMUNITION_CATEGORY ||
+                              RANGE_PACKAGE_QUANTITY_ITEMS[category]?.includes(item.name)) &&
                               selectedItems[category]?.includes(item.name) && (
                                 <label className="range-package-quantity">
                                   Quantity

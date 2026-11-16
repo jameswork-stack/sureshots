@@ -141,6 +141,10 @@ export default function BookingHistory() {
       (total, { items }) =>
         total +
         items.reduce((categoryTotal, item) => {
+          if (item.includedInPackagePrice) {
+            return categoryTotal;
+          }
+
           const quantity =
             "quantity" in item ? Number(item.quantity) || 0 : 1;
           const unitPrice = Number(item.unitPrice) || 0;
@@ -159,6 +163,10 @@ export default function BookingHistory() {
 
     if (Array.isArray(booking.packageItems)) {
       return booking.packageItems.reduce((total, item) => {
+        if (item.includedInPackagePrice) {
+          return total;
+        }
+
         const quantity =
           "quantity" in item ? Number(item.quantity) || 0 : 1;
         const unitPrice = Number(item.unitPrice) || 0;

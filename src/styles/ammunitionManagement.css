@@ -73,10 +73,91 @@
   font-size: 12px;
 }
 
-.ammunition-inventory-heading > span {
+.ammunition-inventory-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.ammunition-inventory-actions > span {
   flex: 0 0 auto;
   color: #8491a3;
   font-size: 12px;
+}
+
+.ammunition-add-item-button,
+.ammunition-create-actions button {
+  min-height: 37px;
+  border: 0;
+  border-radius: 7px;
+  padding: 8px 13px;
+  background: #172033;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ammunition-add-item-button:hover,
+.ammunition-create-actions button:hover:not(:disabled) {
+  background: #334155;
+}
+
+.ammunition-create-form {
+  padding: 18px 22px;
+  border-bottom: 1px solid #edf1f5;
+  background: #f8fafc;
+}
+
+.ammunition-create-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ammunition-create-fields label {
+  display: grid;
+  gap: 6px;
+  color: #526174;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.ammunition-create-fields input,
+.ammunition-create-fields select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 39px;
+  border: 1px solid #dce3eb;
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+  font-size: 13px;
+}
+
+.ammunition-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.ammunition-create-actions .ammunition-create-cancel {
+  border: 1px solid #dce3eb;
+  background: #fff;
+  color: #526174;
+}
+
+.ammunition-create-actions .ammunition-create-cancel:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.ammunition-create-actions button:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
 .ammunition-list-message {
@@ -196,8 +277,22 @@
     padding: 17px;
   }
 
-  .ammunition-inventory-heading > span {
+  .ammunition-inventory-actions {
+    align-items: flex-end;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ammunition-inventory-actions > span {
     font-size: 10px;
+  }
+
+  .ammunition-create-form {
+    padding: 16px;
+  }
+
+  .ammunition-create-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .ammunition-table th,
