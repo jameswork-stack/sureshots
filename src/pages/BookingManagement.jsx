@@ -44,10 +44,72 @@ const getDiscountedPrice = (price, discountPercent) => {
   return Math.round((priceInCents * (100 - discountPercent)) / 100) / 100;
 };
 
+const LEGACY_MEMBER_OPTION = "__existing_booking_member__";
+const OPENING_TIME_MINUTES = 10 * 60;
+const CLOSING_TIME_MINUTES = 19 * 60;
+
+const parseBookingTimeRange = (value) => {
+  const match = /^\s*(\d{1,2}):(\d{2})\s*(AM|PM)\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM)\s*$/i.exec(
+    value || ""
+  );
+  if (!match) return null;
+
+  const toMinutes = (hourValue, minuteValue, period) => {
+    const hour = Number(hourValue);
+    const minute = Number(minuteValue);
+    if (hour < 1 || hour > 12 || minute < 0 || minute > 59) return null;
+    return ((hour % 12) + (period.toUpperCase() === "PM" ? 12 : 0)) * 60 + minute;
+  };
+  const startMinutes = toMinutes(match[1], match[2], match[3]);
+  const endMinutes = toMinutes(match[4], match[5], match[6]);
+  if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {
+    return null;
+  }
+  return { startMinutes, endMinutes };
+};
+
+const formatBookingClockTime = (minutes) => {
+  const hour = Math.floor(minutes / 60);
+  const hour12 = hour % 12 || 12;
+  const period = hour < 12 ? "AM" : "PM";
+  return `${hour12}:${String(minutes % 60).padStart(2, "0")} ${period}`;
+};
+
+const createBookingTimeSlots = (durationMinutes) => {
+  const duration = Number(durationMinutes);
+  if (![30, 60].includes(duration)) return [];
+
+  const slots = [];
+  for (
+    let startMinutes = OPENING_TIME_MINUTES;
+    startMinutes + duration <= CLOSING_TIME_MINUTES;
+    startMinutes += 30
+  ) {
+    const endMinutes = startMinutes + duration;
+    slots.push({
+      value: `${formatBookingClockTime(startMinutes)} - ${formatBookingClockTime(endMinutes)}`,
+      startMinutes,
+      endMinutes,
+    });
+  }
+  return slots;
+};
+
+const getDurationFromBookingTime = (bookTime) => {
+  const interval = parseBookingTimeRange(bookTime);
+  return interval ? interval.endMinutes - interval.startMinutes : 60;
+};
+
+const formatBookingDuration = (durationMinutes) =>
+  Number(durationMinutes) === 30 ? "30 minutes" : "1 hour";
+
 export default function BookingManagement() {
   const [showForm, setShowForm] = useState(false);
 
   const [bookings, setBookings] = useState([]);
+  const [members, setMembers] = useState([]);
+  const [membersLoading, setMembersLoading] = useState(true);
+  const [membersError, setMembersError] = useState("");
   const [bookingSearch, setBookingSearch] = useState("");
 
   const [viewingBooking, setViewingBooking] = useState(null);
@@ -68,9 +130,11 @@ const [booking, setBooking] = useState({
   discountPercent: "",
   bookDate: "",
   bookTime: "",
+  durationMinutes: "",
 
   // Sureshots Member
   memberName: "",
+  memberId: "",
   memberType: "Regular",
   memberNumber: "",
   expirationDate: "",
@@ -94,17 +158,7 @@ const [selectedRangePackageItems, setSelectedRangePackageItems] = useState({});
   const [error, setError] = useState("");
   const [completionError, setCompletionError] = useState("");
 
-  const timeSlots = [
-    "10:00 AM - 11:00 AM",
-    "11:00 AM - 12:00 PM",
-    "12:00 PM - 1:00 PM",
-    "1:00 PM - 2:00 PM",
-    "2:00 PM - 3:00 PM",
-    "3:00 PM - 4:00 PM",
-    "4:00 PM - 5:00 PM",
-    "5:00 PM - 6:00 PM",
-    "6:00 PM - 7:00 PM",
-  ];
+  const timeSlots = createBookingTimeSlots(booking.durationMinutes);
   const managedPackageCategories = [
     ...new Set(managedPackages.map((packageItem) => packageItem.category)),
   ].filter(Boolean);
@@ -119,6 +173,14 @@ const [selectedRangePackageItems, setSelectedRangePackageItems] = useState({});
   const packagesInSelectedCategory = managedPackages.filter(
     (packageItem) => packageItem.category === managedPackageCategory
   );
+  const selectedBookingMember =
+    members.find((member) => member.id === booking.memberId) ||
+    members.find(
+      (member) =>
+        booking.memberNumber
+          ? member.memberNumber === booking.memberNumber
+          : booking.memberName && member.memberName === booking.memberName
+    );
 
   // ================================
   // GET BOOKINGS
@@ -146,6 +208,35 @@ const [selectedRangePackageItems, setSelectedRangePackageItems] = useState({});
 
   useEffect(() => {
     fetchBookings();
+  }, []);
+
+  useEffect(() => {
+    let isCurrent = true;
+    const fetchMembers = async () => {
+      try {
+        const snapshot = await getDocs(collection(db, "sureshotsMembers"));
+        const memberList = snapshot.docs.map((memberDoc) => ({
+          id: memberDoc.id,
+          ...memberDoc.data(),
+        }));
+        memberList.sort((first, second) =>
+          (first.memberName || "").localeCompare(second.memberName || "")
+        );
+        if (isCurrent) setMembers(memberList);
+      } catch (loadError) {
+        console.error("Error loading Sureshots members:", loadError);
+        if (isCurrent) {
+          setMembersError("Unable to load Sureshots members. Please try again.");
+        }
+      } finally {
+        if (isCurrent) setMembersLoading(false);
+      }
+    };
+
+    fetchMembers();
+    return () => {
+      isCurrent = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -237,13 +328,25 @@ const [selectedRangePackageItems, setSelectedRangePackageItems] = useState({});
   // CHECK BOOKED TIME
   // ================================
 
-const isTimeBooked = (date, time) => {
+const isTimeBooked = (date, selectedSlot) => {
   return bookings.some(
-    (item) =>
-      item.id !== editingBookingId &&
-      item.status === "Booked" &&
-      item.bookDate === date &&
-      item.bookTime === time
+    (item) => {
+      if (
+        item.id === editingBookingId ||
+        item.status !== "Booked" ||
+        item.bookDate !== date
+      ) {
+        return false;
+      }
+
+      const existingSlot = parseBookingTimeRange(item.bookTime);
+      if (!existingSlot) return item.bookTime === selectedSlot.value;
+
+      return (
+        selectedSlot.startMinutes < existingSlot.endMinutes &&
+        existingSlot.startMinutes < selectedSlot.endMinutes
+      );
+    }
   );
 };
 
@@ -258,8 +361,25 @@ const isTimeBooked = (date, time) => {
     setBooking((prev) => ({
       ...prev,
       [name]: value,
+      ...(name === "durationMinutes" ? { bookTime: "" } : {}),
     }));
 
+    setError("");
+  };
+
+  const handleMemberSelect = (memberId) => {
+    const selectedMember = members.find((member) => member.id === memberId);
+    if (!selectedMember) return;
+
+    setBooking((current) => ({
+      ...current,
+      memberId: selectedMember.id,
+      memberName: selectedMember.memberName || "",
+      memberType: selectedMember.membershipType || "Regular",
+      memberNumber: selectedMember.memberNumber || "",
+      expirationDate: selectedMember.expirationDate || "",
+      phoneNumber: selectedMember.memberPhoneNumber || "",
+    }));
     setError("");
   };
 
@@ -377,7 +497,9 @@ const isTimeBooked = (date, time) => {
     discountPercent: "",
     bookDate: "",
     bookTime: "",
+    durationMinutes: "",
     memberName: "",
+    memberId: "",
     memberType: "Regular",
     memberNumber: "",
     expirationDate: "",
@@ -394,6 +516,16 @@ const isTimeBooked = (date, time) => {
   // ================================
 
   const handleEditBooking = (item) => {
+    const savedMember =
+      members.find((member) => member.id === item.memberId) ||
+      members.find(
+        (member) =>
+          member.memberNumber &&
+          member.memberNumber === item.memberNumber
+      ) ||
+      (!item.memberNumber
+        ? members.find((member) => member.memberName === item.memberName)
+        : null);
     const existingManagedPackage = managedPackages.find(
       (packageItem) => packageItem.id === item.managedPackageId
     );
@@ -504,7 +636,11 @@ const isTimeBooked = (date, time) => {
         Number(item.discountPercent) > 0 ? String(item.discountPercent) : "",
       bookDate: item.bookDate || "",
       bookTime: item.bookTime || "",
+      durationMinutes: String(
+        item.durationMinutes || getDurationFromBookingTime(item.bookTime)
+      ),
       memberName: item.memberName || "",
+      memberId: savedMember?.id || item.memberId || "",
       memberType: item.memberType || "Regular",
       memberNumber: item.memberNumber || "",
       expirationDate: item.expirationDate || "",
@@ -624,9 +760,25 @@ const isTimeBooked = (date, time) => {
   !Number.isFinite(originalPrice) ||
   originalPrice < 0 ||
   !booking.bookDate ||
-      !booking.bookTime
+      !booking.bookTime ||
+      !booking.durationMinutes
     ) {
   setError("Please complete all required booking fields.");
+  return;
+}
+
+const selectedTimeSlot = timeSlots.find(
+  (slot) => slot.value === booking.bookTime
+);
+if (
+  ![30, 60].includes(Number(booking.durationMinutes)) ||
+  !selectedTimeSlot
+) {
+  setError("Select a booking duration and available time.");
+  return;
+}
+if (isTimeBooked(booking.bookDate, selectedTimeSlot)) {
+  setError("This time overlaps another booking. Please select another time.");
   return;
 }
 
@@ -670,8 +822,13 @@ if (
         managedGunName: selectedManagedPackage?.gunName || "",
         bookDate: booking.bookDate,
         bookTime: booking.bookTime,
+        durationMinutes: Number(booking.durationMinutes),
         memberName:
           booking.customerType === "member" ? booking.memberName.trim() : "",
+        memberId:
+          booking.customerType === "member"
+            ? booking.memberId || selectedBookingMember?.id || ""
+            : "",
         memberType:
           booking.customerType === "member" ? booking.memberType : "",
         memberNumber:
@@ -682,67 +839,45 @@ if (
           booking.customerType === "member" ? booking.phoneNumber.trim() : "",
       };
 
-      // =================================
-      // EDIT EXISTING BOOKING
-      // =================================
+      const querySnapshot = await getDocs(collection(db, "bookings"));
+      const conflictingBooking = querySnapshot.docs.find((bookingDoc) => {
+        if (bookingDoc.id === editingBookingId) return false;
+        const existingBooking = bookingDoc.data();
+        if (
+          existingBooking.status !== "Booked" ||
+          existingBooking.bookDate !== booking.bookDate
+        ) {
+          return false;
+        }
+
+        const existingSlot = parseBookingTimeRange(existingBooking.bookTime);
+        if (!existingSlot) {
+          return existingBooking.bookTime === booking.bookTime;
+        }
+        return (
+          selectedTimeSlot.startMinutes < existingSlot.endMinutes &&
+          existingSlot.startMinutes < selectedTimeSlot.endMinutes
+        );
+      });
+
+      if (conflictingBooking) {
+        setError("This time overlaps another booking. Please select another time.");
+        await fetchBookings();
+        return;
+      }
 
       if (editingBookingId) {
-
-        const bookingRef = doc(
-          db,
-          "bookings",
-          editingBookingId
-        );
-
+        const bookingRef = doc(db, "bookings", editingBookingId);
         await updateDoc(bookingRef, {
           ...bookingData,
           updatedAt: serverTimestamp(),
         });
-
-      }
-
-      // =================================
-      // ADD NEW BOOKING
-      // =================================
-
-      else {
-
-        // Double check Firestore
-        const querySnapshot = await getDocs(
-          collection(db, "bookings")
-        );
-
-        const existingBooking =
-          querySnapshot.docs.find((doc) => {
-
-            const data = doc.data();
-
-            return (
-              data.bookDate === booking.bookDate &&
-              data.bookTime === booking.bookTime
-            );
-
-          });
-
-        if (existingBooking) {
-
-          setError(
-            "This appointment slot was just booked. Please select another time."
-          );
-
-          await fetchBookings();
-
-          return;
-        }
-
-        await addDoc(
-          collection(db, "bookings"),
-          {
-            ...bookingData,
-            status: "Booked",
-            createdAt: serverTimestamp(),
-          }
-        );
+      } else {
+        await addDoc(collection(db, "bookings"), {
+          ...bookingData,
+          status: "Booked",
+          createdAt: serverTimestamp(),
+        });
       }
 
       // Reset form
@@ -755,8 +890,10 @@ if (
         discountPercent: "",
         bookDate: "",
         bookTime: "",
+        durationMinutes: "",
 
         memberName: "",
+  memberId: "",
   memberType: "Regular",
   memberNumber: "",
   expirationDate: "",
@@ -1860,16 +1997,37 @@ const handleCancelBooking = async (id) => {
   <h3>Sureshots Member Information</h3>
 
   <div className="form-group">
-    <label>Member Name</label>
-
-    <input
-      type="text"
-      name="memberName"
-      placeholder="Enter member name"
-      value={booking.memberName}
-      onChange={handleChange}
+    <label htmlFor="booking-member-name">Member Name</label>
+    <select
+      id="booking-member-name"
+      value={selectedBookingMember?.id || (booking.memberName ? LEGACY_MEMBER_OPTION : "")}
+      onChange={(event) => {
+        if (event.target.value !== LEGACY_MEMBER_OPTION) {
+          handleMemberSelect(event.target.value);
+        }
+      }}
+      disabled={membersLoading}
       required
-    />
+    >
+      <option value="">
+        {membersLoading ? "Loading members..." : "Select a member"}
+      </option>
+      {members.map((member) => (
+        <option key={member.id} value={member.id}>
+          {member.memberName}
+          {member.memberNumber ? ` (${member.memberNumber})` : ""}
+        </option>
+      ))}
+      {booking.memberName && !selectedBookingMember && (
+        <option value={LEGACY_MEMBER_OPTION}>
+          {booking.memberName} (not in Members list)
+        </option>
+      )}
+    </select>
+    {membersError && <small role="alert">{membersError}</small>}
+    {!membersLoading && !membersError && members.length === 0 && (
+      <small>No Sureshots members have been added yet.</small>
+    )}
   </div>
 
   <div className="form-row">
@@ -1962,45 +2120,60 @@ const handleCancelBooking = async (id) => {
               {/* TIME */}
 
               <div className="form-group">
+                <label htmlFor="booking-duration">Booking Duration</label>
+                <select
+                  id="booking-duration"
+                  name="durationMinutes"
+                  value={booking.durationMinutes}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">Select duration</option>
+                  <option value="30">30 minutes</option>
+                  <option value="60">1 hour</option>
+                </select>
+              </div>
 
-                <label>
-                  Booking Time
-                </label>
+              <div className="form-group">
+                <label htmlFor="booking-time">Booking Time</label>
 
                 <select
+                  id="booking-time"
                   name="bookTime"
                   value={booking.bookTime}
                   onChange={handleChange}
                   required
-                  disabled={!booking.bookDate}
+                  disabled={!booking.bookDate || !booking.durationMinutes}
                 >
 
                   <option value="">
                     {!booking.bookDate
                       ? "Select a date first"
-                      : "Select time"}
+                      : !booking.durationMinutes
+                        ? "Select duration first"
+                        : "Select time"}
                   </option>
 
 
-                  {timeSlots.map((time) => {
+                  {timeSlots.map((slot) => {
 
                     const booked =
                       isTimeBooked(
                         booking.bookDate,
-                        time
+                        slot
                       );
 
                     return (
 
                       <option
-                        key={time}
-                        value={time}
+                        key={slot.value}
+                        value={slot.value}
                         disabled={booked}
                       >
-                        {time}
+                        {slot.value}
 
                         {booked
-                          ? " - BOOKED"
+                          ? " - UNAVAILABLE"
                           : ""}
 
                       </option>
@@ -2175,6 +2348,16 @@ const handleCancelBooking = async (id) => {
             </strong>
           </div>
 
+          <div className="view-item">
+            <span>Duration</span>
+            <strong>
+              {formatBookingDuration(
+                viewingBooking.durationMinutes ||
+                  getDurationFromBookingTime(viewingBooking.bookTime)
+              )}
+            </strong>
+          </div>
+
         </div>
 
         {(!Array.isArray(viewingBooking.packageContents) ||
@@ -2341,6 +2524,15 @@ const handleCancelBooking = async (id) => {
               <div>
                 <dt>Booking Time</dt>
                 <dd>{printingBooking.bookTime || "-"}</dd>
+              </div>
+              <div>
+                <dt>Duration</dt>
+                <dd>
+                  {formatBookingDuration(
+                    printingBooking.durationMinutes ||
+                      getDurationFromBookingTime(printingBooking.bookTime)
+                  )}
+                </dd>
               </div>
               {Number(printingBooking.discountPercent) > 0 && (
                 <>

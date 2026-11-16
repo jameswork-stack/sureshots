@@ -206,6 +206,103 @@
   font-weight: 400;
 }
 
+.sold-products-builder {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.sold-products-builder .range-package-heading {
+  margin-bottom: 14px;
+}
+
+.sold-products-builder .range-package-heading h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.sold-products-builder .range-package-heading p,
+.sold-products-empty {
+  margin: 5px 0 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.sold-product-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) minmax(90px, 0.8fr) minmax(100px, 0.9fr) auto;
+  align-items: end;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid #e5e7eb;
+}
+
+.sold-product-row label {
+  display: grid;
+  gap: 6px;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.sold-product-row select,
+.sold-product-row input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #1f2937;
+  font: inherit;
+  font-weight: 400;
+}
+
+.sold-product-subtotal {
+  display: grid;
+  gap: 5px;
+  min-height: 40px;
+  align-content: center;
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.sold-product-subtotal strong {
+  color: #1f2937;
+  font-size: 13px;
+}
+
+.sold-product-remove,
+.sold-product-add {
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #374151;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sold-product-remove:hover:not(:disabled),
+.sold-product-add:hover:not(:disabled) {
+  background: #f9fafb;
+}
+
+.sold-product-add {
+  margin-top: 8px;
+}
+
+.sold-product-add:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .sold-total {
   padding: 14px 2px;
   border-top: 1px solid #e5e7eb;
@@ -338,6 +435,18 @@
 
   .sold-form-fields {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sold-product-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .sold-product-row > label:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .sold-product-remove {
+    align-self: center;
   }
 
   .sold-detail-grid {

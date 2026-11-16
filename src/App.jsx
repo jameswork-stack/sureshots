@@ -22,6 +22,7 @@ import DashboardRecords from "./pages/DashboardRecords";
 import SoldManagement from "./pages/SoldManagement";
 import PackageManagement from "./pages/PackageManagement";
 import AmmunitionManagement from "./pages/AmmunitionManagement";
+import Product from "./pages/Product";
 import "./styles/dashboardAccess.css";
 
 const pageBackgroundStyle = {
@@ -181,6 +182,15 @@ export default function App() {
           element={
             <MainLayout>
               <SoldManagement />
+            </MainLayout>
+          }
+        />
+
+        <Route
+          path="/product"
+          element={
+            <MainLayout>
+              <Product />
             </MainLayout>
           }
         />

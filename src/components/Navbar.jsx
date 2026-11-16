@@ -75,6 +75,16 @@ export default function Navbar() {
         </NavLink>
 
         <NavLink
+          to="/product"
+          onClick={closeMenu}
+          className={({ isActive }) =>
+            isActive ? "nav-link active" : "nav-link"
+          }
+        >
+          Product
+        </NavLink>
+
+        <NavLink
           to="/package-management"
           onClick={closeMenu}
           className={({ isActive }) =>

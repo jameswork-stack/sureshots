@@ -893,19 +893,19 @@ export default function Dashboard() {
 
         </Link>
 
-        {/* Sold Range Package Sales */}
+        {/* Range Package and Product Sales */}
 
         <Link
           className="dashboard-card dashboard-card-link range-sold-sales-card"
           to={getCardDetailsUrl("range-sold-sales", dateFrom, dateTo)}
-          aria-label="View records included in Total Range Sold"
+          aria-label="View records included in Total Range and Product Sales"
         >
           <div className="dashboard-card-content">
-            <p>Total Range Sold</p>
+            <p>Total Range &amp; Product Sales</p>
             <h2>
               {loading ? "..." : formatCurrency(totalRangeSoldSales)}
             </h2>
-            <span>Saved rangeSold items</span>
+            <span>Range package items and products sold</span>
           </div>
         </Link>
 

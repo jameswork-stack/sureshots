@@ -41,8 +41,43 @@ const formatCurrency = (amount) =>
 
 const emptyOtherItem = { details: "", price: "" };
 
+const getProductQuantities = (sale) =>
+  (Array.isArray(sale?.productItems) ? sale.productItems : []).reduce(
+    (quantities, item) => {
+      if (!item.productId) return quantities;
+      quantities[item.productId] =
+        (quantities[item.productId] || 0) + Number(item.quantity);
+      return quantities;
+    },
+    {}
+  );
+
+const getProductItemsTotal = (items) =>
+  (Array.isArray(items) ? items : []).reduce((total, item) => {
+    const price = Number(item.unitPrice);
+    const quantity = Number(item.quantity);
+    return Number.isFinite(price) && Number.isFinite(quantity)
+      ? total + price * quantity
+      : total;
+  }, 0);
+
+const fetchProducts = async () => {
+  const snapshot = await getDocs(collection(db, "products"));
+  const productList = snapshot.docs.map((productDoc) => ({
+    id: productDoc.id,
+    ...productDoc.data(),
+  }));
+  productList.sort((first, second) =>
+    (first.productName || "").localeCompare(second.productName || "")
+  );
+  return productList;
+};
+
 export default function SoldManagement() {
   const [soldItems, setSoldItems] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [productLoadError, setProductLoadError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -57,6 +92,7 @@ export default function SoldManagement() {
   const [categories, setCategories] = useState([]);
   const [selectedItems, setSelectedItems] = useState({});
   const [quantities, setQuantities] = useState({});
+  const [productLines, setProductLines] = useState([]);
   const [otherItem, setOtherItem] = useState(emptyOtherItem);
   const [customAmmunitionTypes, setCustomAmmunitionTypes] = useState([]);
   const rangePackageCatalog = useMemo(
@@ -92,9 +128,45 @@ export default function SoldManagement() {
     }
   }, []);
 
+  const loadProducts = async () => {
+    try {
+      setProducts(await fetchProducts());
+      setProductLoadError("");
+    } catch (loadError) {
+      console.error("Error loading products for sold items:", loadError);
+      setProductLoadError("Unable to load products from Product Management.");
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadSoldItems();
   }, [loadSoldItems]);
+
+  useEffect(() => {
+    let isCurrent = true;
+    fetchProducts()
+      .then((productList) => {
+        if (isCurrent) {
+          setProducts(productList);
+          setProductLoadError("");
+        }
+      })
+      .catch((loadError) => {
+        console.error("Error loading products for sold items:", loadError);
+        if (isCurrent) {
+          setProductLoadError("Unable to load products from Product Management.");
+        }
+      })
+      .finally(() => {
+        if (isCurrent) setProductsLoading(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isCurrent = true;
@@ -182,6 +254,32 @@ export default function SoldManagement() {
     setError("");
   };
 
+  const addProductLine = () => {
+    setProductLines((current) => [...current, { productId: "", quantity: "" }]);
+  };
+
+  const updateProductLine = (index, field, value) => {
+    setProductLines((current) =>
+      current.map((line, lineIndex) =>
+        lineIndex === index
+          ? {
+              ...line,
+              [field]: value,
+              ...(field === "productId" ? { quantity: value ? "1" : "" } : {}),
+            }
+          : line
+      )
+    );
+    setError("");
+  };
+
+  const removeProductLine = (index) => {
+    setProductLines((current) =>
+      current.filter((_, lineIndex) => lineIndex !== index)
+    );
+    setError("");
+  };
+
   const packageContents = useMemo(
     () =>
       getRangePackageContents(
@@ -193,7 +291,25 @@ export default function SoldManagement() {
       ),
     [categories, selectedItems, quantities, otherItem, rangePackageCatalog]
   );
-  const totalAmount = getRangePackageItemsTotal(packageContents);
+  const rangePackageTotal = getRangePackageItemsTotal(packageContents);
+  const productSalesTotal = productLines.reduce((total, line) => {
+    const product = products.find((item) => item.id === line.productId);
+    const quantity = Number(line.quantity);
+    return product && Number.isInteger(quantity) && quantity > 0
+      ? total + Number(product.price) * quantity
+      : total;
+  }, 0);
+  const totalAmount = rangePackageTotal + productSalesTotal;
+  const editingSale = soldItems.find((sale) => sale.id === editingSaleId);
+  const previousProductQuantities = getProductQuantities(editingSale);
+  const getAvailableProductStock = (productId) => {
+    const product = products.find((item) => item.id === productId);
+    const stock = Number(product?.stock);
+    const quantityToRestore = Number(previousProductQuantities[productId] || 0);
+    return Number.isInteger(stock) && stock >= 0
+      ? stock + quantityToRestore
+      : 0;
+  };
 
   const resetForm = () => {
     setEditingSaleId(null);
@@ -202,6 +318,7 @@ export default function SoldManagement() {
     setCategories([]);
     setSelectedItems({});
     setQuantities({});
+    setProductLines([]);
     setOtherItem(emptyOtherItem);
     setError("");
     setShowForm(false);
@@ -213,6 +330,14 @@ export default function SoldManagement() {
       : [];
     const existingItems = Array.isArray(sale.packageItems)
       ? sale.packageItems
+      : [];
+    const existingProductLines = Array.isArray(sale.productItems)
+      ? sale.productItems
+          .filter((item) => item.productId)
+          .map((item) => ({
+            productId: item.productId,
+            quantity: String(item.quantity ?? ""),
+          }))
       : [];
     const existingCategories = contents.length
       ? contents.map(({ category }) => category)
@@ -250,6 +375,7 @@ export default function SoldManagement() {
     setCategories(existingCategories);
     setSelectedItems(nextSelectedItems);
     setQuantities(nextQuantities);
+    setProductLines(existingProductLines);
     setOtherItem({
       details: other?.details || other?.name || "",
       price: other?.unitPrice == null ? "" : String(other.unitPrice),
@@ -283,8 +409,15 @@ export default function SoldManagement() {
       setError("Enter a description and a valid price for Others.");
       return;
     }
-    if (!categories.length || !packageContents.length) {
-      setError("Select at least one Range Package item.");
+    const selectedProductLines = productLines.filter((line) => line.productId);
+    if (
+      productLines.some((line) => !line.productId && line.quantity !== "")
+    ) {
+      setError("Select a product for each entered quantity.");
+      return;
+    }
+    if (!packageContents.length && !selectedProductLines.length) {
+      setError("Select at least one Range Package item or product.");
       return;
     }
     const quantityMissing = packageContents.some(({ items }) =>
@@ -298,24 +431,73 @@ export default function SoldManagement() {
       setError("Enter a whole-number quantity of at least 1 for each selected item that requires a quantity.");
       return;
     }
+    if (
+      selectedProductLines.some(
+        (line) =>
+          !Number.isInteger(Number(line.quantity)) ||
+          Number(line.quantity) < 1
+      )
+    ) {
+      setError("Enter a whole-number quantity of at least 1 for each product.");
+      return;
+    }
+    if (
+      new Set(selectedProductLines.map((line) => line.productId)).size !==
+      selectedProductLines.length
+    ) {
+      setError("Select each product only once.");
+      return;
+    }
+
+    const productItems = [];
+    for (const line of selectedProductLines) {
+      const product = products.find((item) => item.id === line.productId);
+      if (!product) {
+        setError("A selected product could not be found. Refresh the product list and try again.");
+        return;
+      }
+
+      const quantity = Number(line.quantity);
+      const unitPrice = Number(product.price);
+      const availableStock = getAvailableProductStock(product.id);
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+        setError(`${product.productName} has an invalid price in Product Management.`);
+        return;
+      }
+      if (quantity > availableStock) {
+        setError(
+          `Not enough stock for ${product.productName}. Available: ${availableStock}.`
+        );
+        return;
+      }
+
+      productItems.push({
+        productId: product.id,
+        name: product.productName || "Product",
+        barcode: product.barcode || "",
+        unitPrice,
+        quantity,
+      });
+    }
 
     try {
       setSaving(true);
       const saleData = {
-        packageCategory: "Range Package",
+        packageCategory: packageContents.length ? "Range Package" : "",
         packageCategories: packageContents.map(({ category }) => category),
         packageContents,
         packageItems: [],
+        productItems,
         soldDate,
         soldTo: soldTo.trim(),
-        totalAmount,
+        totalAmount: rangePackageTotal + getProductItemsTotal(productItems),
         updatedAt: serverTimestamp(),
       };
       const saleRef = editingSaleId
         ? doc(db, "rangeSold", editingSaleId)
         : doc(collection(db, "rangeSold"));
 
-      await runTransaction(db, async (transaction) => {
+      const productStocks = await runTransaction(db, async (transaction) => {
         const saleSnapshot = editingSaleId
           ? await transaction.get(saleRef)
           : null;
@@ -324,24 +506,125 @@ export default function SoldManagement() {
         }
 
         const currentSale = saleSnapshot?.data() || null;
+        const previousProductQuantities = getProductQuantities(currentSale);
+        const nextProductQuantities = getProductQuantities(saleData);
+        const productIds = [
+          ...new Set([
+            ...Object.keys(previousProductQuantities),
+            ...Object.keys(nextProductQuantities),
+          ]),
+        ];
+        const productRefs = productIds.map((productId) =>
+          doc(db, "products", productId)
+        );
+        const productSnapshots = await Promise.all(
+          productRefs.map((productRef) => transaction.get(productRef))
+        );
+        const productSnapshotById = new Map(
+          productIds.map((productId, index) => [
+            productId,
+            productSnapshots[index],
+          ])
+        );
+        const pricedProductItems = saleData.productItems.map((item) => {
+          const productSnapshot = productSnapshotById.get(item.productId);
+          if (!productSnapshot?.exists()) {
+            throw new Error(`${item.name} could not be found in Product Management.`);
+          }
+
+          const productData = productSnapshot.data();
+          const unitPrice = Number(productData.price);
+          if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+            throw new Error(`${productData.productName || item.name} has an invalid price.`);
+          }
+          return {
+            ...item,
+            name: productData.productName || item.name,
+            barcode: productData.barcode || "",
+            unitPrice,
+          };
+        });
+        const productStockUpdates = {};
+        productIds.forEach((productId) => {
+          const productSnapshot = productSnapshotById.get(productId);
+          if (!productSnapshot?.exists()) {
+            throw new Error("A product in this sale no longer exists.");
+          }
+
+          const productData = productSnapshot.data();
+          const currentStock = Number(productData.stock);
+          const previousQuantity = Number(
+            previousProductQuantities[productId] || 0
+          );
+          const nextQuantity = Number(nextProductQuantities[productId] || 0);
+          if (
+            !Number.isInteger(currentStock) ||
+            currentStock < 0 ||
+            !Number.isInteger(previousQuantity) ||
+            previousQuantity < 0 ||
+            !Number.isInteger(nextQuantity) ||
+            nextQuantity < 0
+          ) {
+            throw new Error(
+              `Invalid stock or sale quantity for ${productData.productName || productId}.`
+            );
+          }
+
+          const stockChange = nextQuantity - previousQuantity;
+          if (stockChange > currentStock) {
+            throw new Error(
+              `Not enough stock for ${productData.productName || productId}. Available: ${currentStock}; needed: ${stockChange}.`
+            );
+          }
+          if (stockChange !== 0) {
+            productStockUpdates[productId] = {
+              stock: currentStock - stockChange,
+            };
+          }
+        });
+        const nextSaleData = {
+          ...saleData,
+          productItems: pricedProductItems,
+          totalAmount:
+            rangePackageTotal + getProductItemsTotal(pricedProductItems),
+        };
         const inventoryStockOut = await adjustAmmunitionInventory(
           transaction,
           currentSale,
-          saleData
+          nextSaleData
         );
-        const nextSaleData = { ...saleData, inventoryStockOut };
+        Object.entries(productStockUpdates).forEach(([productId, update]) => {
+          transaction.update(doc(db, "products", productId), {
+            ...update,
+            updatedAt: serverTimestamp(),
+          });
+        });
+        const savedSaleData = { ...nextSaleData, inventoryStockOut };
 
         if (editingSaleId) {
-          transaction.update(saleRef, nextSaleData);
+          transaction.update(saleRef, savedSaleData);
         } else {
           transaction.set(saleRef, {
-            ...nextSaleData,
+            ...savedSaleData,
             createdAt: serverTimestamp(),
           });
         }
+        return Object.fromEntries(
+          Object.entries(productStockUpdates).map(([productId, update]) => [
+            productId,
+            update.stock,
+          ])
+        );
       });
+      setProducts((current) =>
+        current.map((product) =>
+          productStocks[product.id] == null
+            ? product
+            : { ...product, stock: productStocks[product.id] }
+        )
+      );
       resetForm();
-      await loadSoldItems();
+      await Promise.all([loadSoldItems(), loadProducts()]);
     } catch (saveError) {
       console.error("Error saving sold range items:", saveError);
       setError(
@@ -349,6 +632,7 @@ export default function SoldManagement() {
           ? `Failed to save sold items. ${saveError.message}`
           : "Failed to save sold items. Please try again."
       );
+      await loadProducts();
     } finally {
       setSaving(false);
     }
@@ -368,14 +652,54 @@ export default function SoldManagement() {
         }
 
         const currentSale = saleSnapshot.data();
+        const productQuantities = getProductQuantities(currentSale);
+        const productIds = Object.keys(productQuantities);
+        const productRefs = productIds.map((productId) =>
+          doc(db, "products", productId)
+        );
+        const productSnapshots = await Promise.all(
+          productRefs.map((productRef) => transaction.get(productRef))
+        );
+        const productStockUpdates = [];
+        productSnapshots.forEach((productSnapshot, index) => {
+          const productId = productIds[index];
+          if (!productSnapshot.exists()) {
+            throw new Error("A product in this sale no longer exists.");
+          }
+
+          const productData = productSnapshot.data();
+          const currentStock = Number(productData.stock);
+          const quantity = Number(productQuantities[productId]);
+          if (
+            !Number.isInteger(currentStock) ||
+            currentStock < 0 ||
+            !Number.isInteger(quantity) ||
+            quantity < 0
+          ) {
+            throw new Error(
+              `Invalid stock or sale quantity for ${productData.productName || productId}.`
+            );
+          }
+          productStockUpdates.push({
+            productId,
+            stock: currentStock + quantity,
+          });
+        });
+
         await adjustAmmunitionInventory(
           transaction,
           currentSale,
           { ...currentSale, packageContents: [], packageItems: [] }
         );
+        productStockUpdates.forEach(({ productId, stock }) => {
+          transaction.update(doc(db, "products", productId), {
+            stock,
+            updatedAt: serverTimestamp(),
+          });
+        });
         transaction.delete(saleRef);
       });
-      await loadSoldItems();
+      await Promise.all([loadSoldItems(), loadProducts()]);
     } catch (deleteError) {
       console.error("Error deleting sold range items:", deleteError);
       setError(
@@ -383,6 +707,7 @@ export default function SoldManagement() {
           ? `Failed to delete this sold items record. ${deleteError.message}`
           : "Failed to delete this sold items record."
       );
+      await loadProducts();
     }
   };
 
@@ -405,14 +730,15 @@ export default function SoldManagement() {
   const getSaleTotal = (sale) =>
     sale.totalAmount != null && Number.isFinite(Number(sale.totalAmount))
       ? Number(sale.totalAmount)
-      : getRangePackageItemsTotal(getSaleContents(sale));
+      : getRangePackageItemsTotal(getSaleContents(sale)) +
+        getProductItemsTotal(sale.productItems);
 
   return (
     <div className="sold-management-page">
       <header className="sold-management-header">
         <div>
           <h1>Sold Management</h1>
-          <p>Record and review Range Package items sold.</p>
+          <p>Record and review Range Package items and products sold.</p>
         </div>
         <button
           className="sold-add-button"
@@ -430,7 +756,7 @@ export default function SoldManagement() {
 
       <section className="sold-list">
         <div className="sold-list-header">
-          <h2>Range Package Sales</h2>
+          <h2>Sales</h2>
           <span>{soldItems.length} records</span>
         </div>
         {loading ? (
@@ -557,7 +883,7 @@ export default function SoldManagement() {
             <header className="sold-form-header">
               <div>
                 <h2 id="sold-view-title">Sold Items Details</h2>
-                <p>Range Package sale record</p>
+                <p>Sale record</p>
               </div>
               <button
                 className="sold-close-button"
@@ -573,29 +899,58 @@ export default function SoldManagement() {
               <div><dt>Sold To</dt><dd>{viewingSale.soldTo || "Walk-in sale"}</dd></div>
               <div><dt>Total</dt><dd>{formatCurrency(getSaleTotal(viewingSale))}</dd></div>
             </dl>
-            <h3>Range Package Items</h3>
-            <div className="sold-detail-categories">
-              {getSaleContents(viewingSale).map(({ category, items }) => (
-                <section key={category}>
-                  <h4>{RANGE_PACKAGE_CATEGORY_LABELS[category] || category}</h4>
-                  <ul>
-                    {items.map((item, index) => {
-                      const quantity = "quantity" in item ? Number(item.quantity) : 1;
-                      const itemTotal = Number(item.unitPrice) * quantity;
-                      return (
-                        <li key={`${item.name}-${index}`}>
-                          <span>
-                            {item.name}
-                            {"quantity" in item && ` · Qty ${quantity} ${item.unit}`}
-                          </span>
-                          <strong>{formatCurrency(itemTotal)}</strong>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </section>
-              ))}
-            </div>
+            {getSaleContents(viewingSale).length > 0 && (
+              <>
+                <h3>Range Package Items</h3>
+                <div className="sold-detail-categories">
+                  {getSaleContents(viewingSale).map(({ category, items }) => (
+                    <section key={category}>
+                      <h4>{RANGE_PACKAGE_CATEGORY_LABELS[category] || category}</h4>
+                      <ul>
+                        {items.map((item, index) => {
+                          const quantity = "quantity" in item ? Number(item.quantity) : 1;
+                          const itemTotal = Number(item.unitPrice) * quantity;
+                          return (
+                            <li key={`${item.name}-${index}`}>
+                              <span>
+                                {item.name}
+                                {"quantity" in item && ` · Qty ${quantity} ${item.unit}`}
+                              </span>
+                              <strong>{formatCurrency(itemTotal)}</strong>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </section>
+                  ))}
+                </div>
+              </>
+            )}
+            {Array.isArray(viewingSale.productItems) &&
+              viewingSale.productItems.length > 0 && (
+                <>
+                  <h3>Products</h3>
+                  <div className="sold-detail-categories">
+                    <section>
+                      <ul>
+                        {viewingSale.productItems.map((item, index) => (
+                          <li key={`${item.productId}-${index}`}>
+                            <span>
+                              {item.name} · Qty {item.quantity}
+                              {item.barcode && ` · Barcode ${item.barcode}`}
+                            </span>
+                            <strong>
+                              {formatCurrency(
+                                Number(item.unitPrice) * Number(item.quantity)
+                              )}
+                            </strong>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  </div>
+                </>
+              )}
             <div className="sold-total">
               <span>Total</span>
               <strong>{formatCurrency(getSaleTotal(viewingSale))}</strong>
@@ -764,9 +1119,118 @@ export default function SoldManagement() {
                 ))}
               </section>
 
+              <section className="sold-products-builder">
+                <div className="range-package-heading">
+                  <h3>Products</h3>
+                  <p>Select products and quantities to add them to this sale.</p>
+                </div>
+                {productLoadError && (
+                  <p className="sold-form-error" role="alert">
+                    {productLoadError}
+                  </p>
+                )}
+                {productsLoading && (
+                  <p className="sold-products-empty" role="status">
+                    Loading products...
+                  </p>
+                )}
+                {!productsLoading && !productLoadError && products.length === 0 && (
+                  <p className="sold-products-empty">
+                    No products are available. Add products in Product Management first.
+                  </p>
+                )}
+                {productLines.map((line, index) => {
+                  const selectedProduct = products.find(
+                    (product) => product.id === line.productId
+                  );
+                  const quantity = Number(line.quantity);
+                  const subtotal =
+                    selectedProduct &&
+                    Number.isInteger(quantity) &&
+                    quantity > 0
+                      ? Number(selectedProduct.price) * quantity
+                      : 0;
+                  return (
+                    <div className="sold-product-row" key={`product-line-${index}`}>
+                      <label>
+                        Product
+                        <select
+                          value={line.productId}
+                          onChange={(event) =>
+                            updateProductLine(index, "productId", event.target.value)
+                          }
+                          disabled={productsLoading || Boolean(productLoadError)}
+                        >
+                          <option value="">Select a product</option>
+                          {products.map((product) => {
+                            const selectedElsewhere = productLines.some(
+                              (otherLine, otherIndex) =>
+                                otherIndex !== index &&
+                                otherLine.productId === product.id
+                            );
+                            const available = getAvailableProductStock(product.id);
+                            return (
+                              <option
+                                key={product.id}
+                                value={product.id}
+                                disabled={selectedElsewhere || available < 1}
+                              >
+                                {product.productName} · {formatCurrency(Number(product.price) || 0)} · Stock {available}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </label>
+                      <label>
+                        Quantity
+                        <input
+                          type="number"
+                          min="1"
+                          max={
+                            selectedProduct
+                              ? getAvailableProductStock(selectedProduct.id)
+                              : undefined
+                          }
+                          step="1"
+                          value={line.quantity}
+                          onChange={(event) =>
+                            updateProductLine(index, "quantity", event.target.value)
+                          }
+                          disabled={!selectedProduct}
+                        />
+                      </label>
+                      <div className="sold-product-subtotal">
+                        <span>Subtotal</span>
+                        <strong>{formatCurrency(subtotal)}</strong>
+                      </div>
+                      <button
+                        className="sold-product-remove"
+                        type="button"
+                        onClick={() => removeProductLine(index)}
+                        aria-label={`Remove product row ${index + 1}`}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  );
+                })}
+                <button
+                  className="sold-product-add"
+                  type="button"
+                  onClick={addProductLine}
+                  disabled={
+                    productsLoading ||
+                    Boolean(productLoadError) ||
+                    products.length === 0
+                  }
+                >
+                  + Add Product
+                </button>
+              </section>
+
               {error && <p className="sold-form-error" role="alert">{error}</p>}
               <div className="sold-total">
-                <span>Items total</span>
+                <span>Sale total</span>
                 <strong>{formatCurrency(totalAmount)}</strong>
               </div>
               <div className="sold-form-actions">
@@ -790,7 +1254,7 @@ export default function SoldManagement() {
       {printingSale && (
         <article className="sold-print-sheet" aria-hidden="true">
           <header>
-            <p>SURESHOTS · RANGE PACKAGE SALE</p>
+            <p>SURESHOTS · SOLD ITEMS</p>
             <h1>Sold Items Record</h1>
           </header>
           <dl className="sold-print-details">
@@ -816,6 +1280,27 @@ export default function SoldManagement() {
               </ul>
             </section>
           ))}
+          {Array.isArray(printingSale.productItems) &&
+            printingSale.productItems.length > 0 && (
+              <section>
+                <h2>Products</h2>
+                <ul>
+                  {printingSale.productItems.map((item, index) => (
+                    <li key={`${item.productId}-${index}`}>
+                      <span>
+                        {item.name} · {item.quantity}
+                        {item.barcode && ` · Barcode ${item.barcode}`}
+                      </span>
+                      <strong>
+                        {formatCurrency(
+                          Number(item.unitPrice) * Number(item.quantity)
+                        )}
+                      </strong>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
           <footer>
             <span>Total</span>
             <strong>{formatCurrency(getSaleTotal(printingSale))}</strong>

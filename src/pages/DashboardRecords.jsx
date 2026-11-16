@@ -18,8 +18,8 @@ const METRICS = {
     type: "range-sales",
   },
   "range-sold-sales": {
-    title: "Total Range Sold",
-    description: "Saved Range Package sale records from Sold Management.",
+    title: "Total Range & Product Sales",
+    description: "Range package items and products sold through Sold Management.",
     type: "range-sold-sales",
   },
   "membership-sales": {
@@ -227,9 +227,20 @@ export default function DashboardRecords() {
               }))
             : []
         );
+        const productItems = Array.isArray(sale.productItems)
+          ? sale.productItems
+          : [];
         const fallbackAmount = items.reduce((total, item) => {
           const unitPrice = Number(item.unitPrice);
           const quantity = item.quantity == null ? 1 : Number(item.quantity);
+          return Number.isFinite(unitPrice) &&
+            Number.isFinite(quantity) &&
+            quantity >= 0
+            ? total + unitPrice * quantity
+            : total;
+        }, 0) + productItems.reduce((total, item) => {
+          const unitPrice = Number(item.unitPrice);
+          const quantity = Number(item.quantity);
           return Number.isFinite(unitPrice) &&
             Number.isFinite(quantity) &&
             quantity >= 0
@@ -240,12 +251,13 @@ export default function DashboardRecords() {
           sale.totalAmount != null && Number.isFinite(Number(sale.totalAmount))
             ? Number(sale.totalAmount)
             : fallbackAmount;
-        const itemDetails = items
-          .map(
+        const itemDetails = [
+          ...items.map(
             (item) =>
               `${item.name}${"quantity" in item ? ` × ${item.quantity}` : ""}`
-          )
-          .join(", ");
+          ),
+          ...productItems.map((item) => `${item.name} × ${item.quantity}`),
+        ].join(", ");
 
         return [{
           id: sale.id,
