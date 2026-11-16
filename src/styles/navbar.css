@@ -206,6 +206,15 @@
     display: block;
   }
 
+  .software-info {
+    display: none;
+  }
+
+  .menu-open .software-info {
+    display: block;
+    padding: 0 12px 10px;
+  }
+
   .logout-button {
     padding: 11px 12px;
   }
