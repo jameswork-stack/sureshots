@@ -14,8 +14,8 @@ import {
   getTargetBoardItem,
   removeAmmunitionItem,
   removeAmmunitionStock,
-  renameAmmunitionItem,
   syncLegacyAmmunitionNames,
+  updateAmmunitionItem,
 } from "../utils/ammunitionInventory";
 import { RANGE_PACKAGE_CATALOG } from "../utils/rangePackage";
 import "../styles/ammunitionManagement.css";
@@ -30,6 +30,11 @@ const EMPTY_AMMUNITION_ITEM = {
   unitPrice: "",
   initialStock: "0",
 };
+const formatCurrency = (amount) =>
+  new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+  }).format(Number(amount) || 0);
 
 export default function AmmunitionManagement() {
   const [stockLevels, setStockLevels] = useState({});
@@ -54,6 +59,7 @@ export default function AmmunitionManagement() {
   const [menuPosition, setMenuPosition] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
   const [editingName, setEditingName] = useState("");
+  const [editingPrice, setEditingPrice] = useState("");
   const [itemActionLoading, setItemActionLoading] = useState(false);
   const inventoryItems = [
     ...builtInAmmunitionTypes,
@@ -234,6 +240,7 @@ export default function AmmunitionManagement() {
     closeMenu();
     setEditingItem(item);
     setEditingName(item.name);
+    setEditingPrice(String(item.unitPrice ?? ""));
     setError("");
     setSuccess("");
   };
@@ -245,17 +252,20 @@ export default function AmmunitionManagement() {
     setError("");
     setSuccess("");
     setItemActionLoading(true);
+    const unitPrice = Number(editingPrice);
     try {
-      await renameAmmunitionItem(editingItem, editingName);
+      await updateAmmunitionItem(editingItem, editingName, editingPrice);
       if (editingItem.targetBoard) {
         setTargetBoardItem((current) =>
-          current ? { ...current, name: editingName.trim() } : current
+          current
+            ? { ...current, name: editingName.trim(), unitPrice }
+            : current
         );
       } else if (editingItem.builtIn) {
         setBuiltInAmmunitionTypes((current) =>
           current.map((item) =>
             item.catalogId === editingItem.catalogId
-              ? { ...item, name: editingName.trim() }
+              ? { ...item, name: editingName.trim(), unitPrice }
               : item
           )
         );
@@ -263,14 +273,15 @@ export default function AmmunitionManagement() {
         setCustomAmmunitionTypes((current) =>
           current.map((item) =>
             item.inventoryName === editingItem.inventoryName
-              ? { ...item, name: editingName.trim() }
+              ? { ...item, name: editingName.trim(), unitPrice }
               : item
           )
         );
       }
-      setSuccess(`Renamed ${editingItem.name} to ${editingName.trim()}.`);
+      setSuccess(`Updated ${editingName.trim()}.`);
       setEditingItem(null);
       setEditingName("");
+      setEditingPrice("");
     } catch (renameError) {
       console.error("Error renaming ammunition item:", renameError);
       setError(
@@ -594,22 +605,44 @@ export default function AmmunitionManagement() {
             className="ammunition-rename-form"
             onSubmit={handleRenameItem}
           >
-            <label htmlFor="rename-ammunition-item">Rename item</label>
-            <input
-              id="rename-ammunition-item"
-              type="text"
-              value={editingName}
-              onChange={(event) => setEditingName(event.target.value)}
-              maxLength="100"
-              required
+            <label htmlFor="rename-ammunition-item">
+              Item name
+              <input
+                id="rename-ammunition-item"
+                type="text"
+                value={editingName}
+                onChange={(event) => setEditingName(event.target.value)}
+                maxLength="100"
+                required
+                disabled={itemActionLoading}
+                autoFocus
+              />
+            </label>
+            <label htmlFor="edit-ammunition-price">
+              Price per {editingItem.unit}
+              <input
+                id="edit-ammunition-price"
+                type="number"
+                min="0"
+                step="0.01"
+                value={editingPrice}
+                onChange={(event) => setEditingPrice(event.target.value)}
+                required
+                disabled={itemActionLoading}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingItem(null);
+                setEditingPrice("");
+              }}
               disabled={itemActionLoading}
-              autoFocus
-            />
-            <button type="button" onClick={() => setEditingItem(null)}>
+            >
               Cancel
             </button>
             <button type="submit" disabled={itemActionLoading}>
-              {itemActionLoading ? "Saving..." : "Save name"}
+              {itemActionLoading ? "Saving..." : "Save changes"}
             </button>
           </form>
         )}
@@ -628,6 +661,7 @@ export default function AmmunitionManagement() {
               <thead>
                 <tr>
                   <th>Inventory item</th>
+                  <th>Price</th>
                   <th>In stock</th>
                   <th>Stock actions</th>
                   <th>Actions</th>
@@ -647,6 +681,9 @@ export default function AmmunitionManagement() {
                     <tr key={item.name}>
                       <td>
                         <strong>{item.name}</strong>
+                      </td>
+                      <td className="ammunition-item-price">
+                        {formatCurrency(item.unitPrice)} / {item.unit}
                       </td>
                       <td className="ammunition-stock-level">
                         {stockLevels[inventoryId] || 0} {unit}

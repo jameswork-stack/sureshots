@@ -127,9 +127,15 @@ export const getAmmunitionTypes = async () => {
       const catalogId = getAmmunitionInventoryId(item.name);
       const override = catalogOverrides.get(catalogId);
       if (override?.active === false) return [];
+      const unitPrice =
+        override?.unitPrice == null ? item.unitPrice : Number(override.unitPrice);
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+        throw new Error(`Invalid price for ammunition item ${item.name}.`);
+      }
       return [{
         ...item,
         name: typeof override?.name === "string" ? override.name : item.name,
+        unitPrice,
         inventoryName: item.name,
         catalogId,
         builtIn: true,
@@ -180,21 +186,34 @@ export const getTargetBoardItem = async () => {
     : null;
 
   if (override?.active === false) return null;
+  const defaultItem = RANGE_PACKAGE_CATALOG["Range Fee Rates"].find(
+    (item) => item.name === TARGET_BOARD_NAME
+  );
+  const unitPrice =
+    override?.unitPrice == null
+      ? defaultItem.unitPrice
+      : Number(override.unitPrice);
+  if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+    throw new Error(`Invalid price for ${TARGET_BOARD_NAME}.`);
+  }
 
   return {
-    ...RANGE_PACKAGE_CATALOG["Range Fee Rates"].find(
-      (item) => item.name === TARGET_BOARD_NAME
-    ),
+    ...defaultItem,
     name: typeof override?.name === "string" ? override.name : TARGET_BOARD_NAME,
+    unitPrice,
     inventoryName: TARGET_BOARD_NAME,
     catalogId,
     targetBoard: true,
   };
 };
 
-export const renameAmmunitionItem = async (item, nextName) => {
+export const updateAmmunitionItem = async (item, nextName, nextUnitPrice) => {
   const name = typeof nextName === "string" ? nextName.trim() : "";
   if (!name) throw new Error("Enter an ammunition item name.");
+  const unitPrice = Number(nextUnitPrice);
+  if (nextUnitPrice === "" || !Number.isFinite(unitPrice) || unitPrice < 0) {
+    throw new Error("Enter a valid price of 0 or more.");
+  }
   const [ammunitionTypes, targetBoardItem] = await Promise.all([
     getAmmunitionTypes(),
     getTargetBoardItem(),
@@ -221,6 +240,7 @@ export const renameAmmunitionItem = async (item, nextName) => {
       {
         catalogId: item.catalogId,
         name,
+        unitPrice,
         active: true,
         updatedAt: serverTimestamp(),
       },
@@ -234,7 +254,11 @@ export const renameAmmunitionItem = async (item, nextName) => {
     AMMUNITION_INVENTORY_COLLECTION,
     getAmmunitionInventoryId(item.inventoryName || item.name)
   );
-  await updateDoc(inventoryRef, { name, updatedAt: serverTimestamp() });
+  await updateDoc(inventoryRef, {
+    name,
+    unitPrice,
+    updatedAt: serverTimestamp(),
+  });
 };
 
 export const removeAmmunitionItem = async (item) => {

@@ -170,15 +170,16 @@
 }
 
 .ammunition-rename-form label {
+  display: grid;
+  gap: 6px;
   color: #526174;
   font-size: 12px;
   font-weight: 700;
-  white-space: nowrap;
 }
 
 .ammunition-rename-form input {
   box-sizing: border-box;
-  width: min(320px, 100%);
+  width: min(250px, 100%);
   min-height: 37px;
   border: 1px solid #dce3eb;
   border-radius: 7px;
@@ -226,7 +227,7 @@
 
 .ammunition-table {
   width: 100%;
-  min-width: 680px;
+  min-width: 760px;
   border-collapse: collapse;
   text-align: left;
 }
@@ -262,6 +263,12 @@
 }
 
 .ammunition-stock-level {
+  white-space: nowrap;
+}
+
+.ammunition-item-price {
+  color: #334155 !important;
+  font-weight: 650;
   white-space: nowrap;
 }
 
@@ -420,8 +427,7 @@
   }
 
   .ammunition-rename-form input {
-    flex: 1 1 100%;
-    order: 1;
+    width: 100%;
   }
 
   .ammunition-create-fields {
