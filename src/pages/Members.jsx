@@ -53,6 +53,19 @@ const formatDate = (dateString) => {
       });
 };
 
+const getExpirationTimestamp = (expirationDate) => {
+  if (typeof expirationDate !== "string" || !expirationDate.trim()) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const timestamp = Date.parse(
+    /^\d{4}-\d{2}-\d{2}$/.test(expirationDate)
+      ? `${expirationDate}T00:00:00`
+      : expirationDate
+  );
+  return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
+};
+
 export default function Members() {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +73,7 @@ export default function Members() {
   const [pageError, setPageError] = useState("");
   const [formError, setFormError] = useState("");
   const [search, setSearch] = useState("");
+  const [membershipFilter, setMembershipFilter] = useState("All");
   const [showForm, setShowForm] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const [memberForm, setMemberForm] = useState(EMPTY_MEMBER_FORM);
@@ -139,21 +153,31 @@ export default function Members() {
 
   const filteredMembers = useMemo(() => {
     const searchTerm = search.trim().toLocaleLowerCase();
-    if (!searchTerm) {
-      return members;
-    }
-
-    return members.filter((member) =>
-      [
-        member.memberName,
-        member.memberNumber,
-        member.memberPhoneNumber,
-        member.membershipType,
-      ].some((value) =>
-        (value || "").toLocaleLowerCase().includes(searchTerm)
-      )
-    );
-  }, [members, search]);
+    return members
+      .filter((member) => {
+        const matchesType =
+          membershipFilter === "All" ||
+          (member.membershipType || "").trim().toLocaleLowerCase() ===
+            membershipFilter.toLocaleLowerCase();
+        const matchesSearch =
+          !searchTerm ||
+          [
+            member.memberName,
+            member.memberNumber,
+            member.memberPhoneNumber,
+            member.membershipType,
+          ].some((value) =>
+            (value || "").toLocaleLowerCase().includes(searchTerm)
+          );
+        return matchesType && matchesSearch;
+      })
+      .sort(
+        (first, second) =>
+          getExpirationTimestamp(second.expirationDate) -
+            getExpirationTimestamp(first.expirationDate) ||
+          (first.memberName || "").localeCompare(second.memberName || "")
+      );
+  }, [members, search, membershipFilter]);
 
   const membershipSummary = useMemo(
     () =>
@@ -371,15 +395,31 @@ export default function Members() {
               Showing {filteredMembers.length} of {members.length} members
             </p>
           </div>
-          <label className="members-search">
-            <span className="visually-hidden">Search members</span>
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search name, number, phone, or tier"
-            />
-          </label>
+          <div className="members-list-controls">
+            <label className="members-filter">
+              <span className="visually-hidden">Filter by membership type</span>
+              <select
+                value={membershipFilter}
+                onChange={(event) => setMembershipFilter(event.target.value)}
+              >
+                <option value="All">All membership types</option>
+                {Object.keys(MEMBERSHIP_PRICES).map((type) => (
+                  <option value={type} key={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="members-search">
+              <span className="visually-hidden">Search members</span>
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search name, number, phone, or tier"
+              />
+            </label>
+          </div>
         </div>
 
         {selectedMember && menuPosition &&
@@ -440,7 +480,9 @@ export default function Members() {
             <span>Add a member to start managing memberships.</span>
           </div>
         ) : filteredMembers.length === 0 ? (
-          <div className="members-message">No members match your search.</div>
+          <div className="members-message">
+            No members match your filters.
+          </div>
         ) : (
           <div className="members-table-wrap">
             <table className="members-table">

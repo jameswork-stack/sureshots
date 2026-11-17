@@ -14,7 +14,7 @@ const METRICS = {
   },
   "range-sales": {
     title: "Total Range Sales",
-    description: "Completed range package item sales, excluding Range Fee and Target Board.",
+    description: "Completed booking range sales and Sold Management transactions.",
     type: "range-sales",
   },
   "range-sold-sales": {
@@ -107,6 +107,72 @@ const formatCurrency = (amount) =>
     currency: "PHP",
   }).format(amount);
 
+const getRangeSoldRows = (rangeSold, dateFrom, dateTo) =>
+  rangeSold.flatMap((sale) => {
+    const date = getDateFromValue(sale.soldDate);
+    if (
+      (dateFrom || dateTo) &&
+      !isInSelectedRange(date, dateFrom, dateTo)
+    ) {
+      return [];
+    }
+
+    const contents = Array.isArray(sale.packageContents)
+      ? sale.packageContents
+      : [];
+    const items = contents.flatMap((category) =>
+      Array.isArray(category.items)
+        ? category.items.map((item) => ({
+            ...item,
+            category: category.category,
+          }))
+        : []
+    );
+    const productItems = Array.isArray(sale.productItems)
+      ? sale.productItems
+      : [];
+    const fallbackAmount =
+      items.reduce((total, item) => {
+        const unitPrice = Number(item.unitPrice);
+        const quantity = item.quantity == null ? 1 : Number(item.quantity);
+        return Number.isFinite(unitPrice) &&
+          Number.isFinite(quantity) &&
+          quantity >= 0
+          ? total + unitPrice * quantity
+          : total;
+      }, 0) +
+      productItems.reduce((total, item) => {
+        const unitPrice = Number(item.unitPrice);
+        const quantity = Number(item.quantity);
+        return Number.isFinite(unitPrice) &&
+          Number.isFinite(quantity) &&
+          quantity >= 0
+          ? total + unitPrice * quantity
+          : total;
+      }, 0);
+    const amount =
+      sale.totalAmount != null && Number.isFinite(Number(sale.totalAmount))
+        ? Number(sale.totalAmount)
+        : fallbackAmount;
+    const itemDetails = [
+      ...items.map(
+        (item) =>
+          `${item.name}${"quantity" in item ? ` × ${item.quantity}` : ""}`
+      ),
+      ...productItems.map((item) => `${item.name} × ${item.quantity}`),
+    ].join(", ");
+
+    return [{
+      id: sale.id,
+      date: formatDate(date),
+      sortDate: date?.getTime() ?? 0,
+      record: sale.soldTo || "Walk-in sale",
+      details: itemDetails || "Range Package sale",
+      status: "Sold",
+      amount,
+    }];
+  });
+
 export default function DashboardRecords() {
   const { metric } = useParams();
   const [searchParams] = useSearchParams();
@@ -127,6 +193,30 @@ export default function DashboardRecords() {
     const loadRecords = async () => {
       setError("");
       try {
+        if (definition?.type === "range-sales") {
+          const [bookingsSnapshot, rangeSoldSnapshot] = await Promise.all([
+            getDocs(collection(db, "bookings")),
+            getDocs(collection(db, "rangeSold")),
+          ]);
+          if (!isCurrent) return;
+
+          setBookings(
+            bookingsSnapshot.docs.map((record) => ({
+              id: record.id,
+              ...record.data(),
+            }))
+          );
+          setRangeSold(
+            rangeSoldSnapshot.docs.map((record) => ({
+              id: record.id,
+              ...record.data(),
+            }))
+          );
+          setMembers([]);
+          setAttendance([]);
+          return;
+        }
+
         const collectionName =
           definition?.type === "range-sold-sales"
             ? "rangeSold"
@@ -207,71 +297,10 @@ export default function DashboardRecords() {
     }
 
     if (definition.type === "range-sold-sales") {
-      return rangeSold.flatMap((sale) => {
-        const date = getDateFromValue(sale.soldDate);
-        if (
-          (dateFrom || dateTo) &&
-          !isInSelectedRange(date, dateFrom, dateTo)
-        ) {
-          return [];
-        }
-
-        const contents = Array.isArray(sale.packageContents)
-          ? sale.packageContents
-          : [];
-        const items = contents.flatMap((category) =>
-          Array.isArray(category.items)
-            ? category.items.map((item) => ({
-                ...item,
-                category: category.category,
-              }))
-            : []
-        );
-        const productItems = Array.isArray(sale.productItems)
-          ? sale.productItems
-          : [];
-        const fallbackAmount = items.reduce((total, item) => {
-          const unitPrice = Number(item.unitPrice);
-          const quantity = item.quantity == null ? 1 : Number(item.quantity);
-          return Number.isFinite(unitPrice) &&
-            Number.isFinite(quantity) &&
-            quantity >= 0
-            ? total + unitPrice * quantity
-            : total;
-        }, 0) + productItems.reduce((total, item) => {
-          const unitPrice = Number(item.unitPrice);
-          const quantity = Number(item.quantity);
-          return Number.isFinite(unitPrice) &&
-            Number.isFinite(quantity) &&
-            quantity >= 0
-            ? total + unitPrice * quantity
-            : total;
-        }, 0);
-        const amount =
-          sale.totalAmount != null && Number.isFinite(Number(sale.totalAmount))
-            ? Number(sale.totalAmount)
-            : fallbackAmount;
-        const itemDetails = [
-          ...items.map(
-            (item) =>
-              `${item.name}${"quantity" in item ? ` × ${item.quantity}` : ""}`
-          ),
-          ...productItems.map((item) => `${item.name} × ${item.quantity}`),
-        ].join(", ");
-
-        return [{
-          id: sale.id,
-          date: formatDate(date),
-          sortDate: date?.getTime() ?? 0,
-          record: sale.soldTo || "Walk-in sale",
-          details: itemDetails || "Range Package sale",
-          status: "Sold",
-          amount,
-        }];
-      });
+      return getRangeSoldRows(rangeSold, dateFrom, dateTo);
     }
 
-    return bookings.flatMap((booking) => {
+    const bookingRows = bookings.flatMap((booking) => {
       const status = definition.type === "bookings-list"
         ? metric === "bookings" ? "Booked" : "Completed"
         : "Completed";
@@ -376,6 +405,10 @@ export default function DashboardRecords() {
         amount: bookingPrice + rangeFeeRevenue + targetBoardRevenue,
       }];
     });
+
+    return definition.type === "range-sales"
+      ? [...bookingRows, ...getRangeSoldRows(rangeSold, dateFrom, dateTo)]
+      : bookingRows;
   }, [
     attendance,
     bookings,

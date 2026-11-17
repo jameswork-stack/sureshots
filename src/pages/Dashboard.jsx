@@ -74,7 +74,6 @@ export default function Dashboard() {
   const [presentMembers, setPresentMembers] = useState(0);
   const [totalSalesRevenue, setTotalSalesRevenue] = useState(0);
   const [totalRangeSales, setTotalRangeSales] = useState(0);
-  const [totalRangeSoldSales, setTotalRangeSoldSales] = useState(0);
   const [totalRangeFeeAvailed, setTotalRangeFeeAvailed] = useState(0);
   const [totalMembershipSales, setTotalMembershipSales] = useState(0);
   const [topPackages, setTopPackages] = useState([]);
@@ -404,7 +403,7 @@ export default function Dashboard() {
           0
         );
       }, 0);
-      setTotalRangeSoldSales(rangeSoldRevenue);
+      setTotalRangeSales(rangeSalesRevenue + rangeSoldRevenue);
 
     } catch (error) {
       console.error(
@@ -888,27 +887,11 @@ export default function Dashboard() {
             </h2>
 
             <span>
-              Completed range package items, excluding Range Fee and Target Board
+              Completed range sales and items sold through Sold Management
             </span>
 
           </div>
 
-        </Link>
-
-        {/* Range Package and Product Sales */}
-
-        <Link
-          className="dashboard-card dashboard-card-link range-sold-sales-card"
-          to={getCardDetailsUrl("range-sold-sales", dateFrom, dateTo)}
-          aria-label="View records included in Total Range and Product Sales"
-        >
-          <div className="dashboard-card-content">
-            <p>Total Range &amp; Product Sales</p>
-            <h2>
-              {loading ? "..." : formatCurrency(totalRangeSoldSales)}
-            </h2>
-            <span>Range package items and products sold</span>
-          </div>
         </Link>
 
         {/* Membership Sales */}
