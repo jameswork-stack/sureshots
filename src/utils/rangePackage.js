@@ -98,6 +98,11 @@ export const getRangePackageContents = (
                 unit: item.unit,
                 pricing: item.pricing || "",
                 ...(category === "Ammunition Prices" ||
+                (category === "Range Fee Rates" && item.unit === "board")
+                  ? { inventoryName: item.inventoryName || item.name }
+                  : {}),
+                ...(category === "Ammunition Prices" ||
+                (category === "Range Fee Rates" && item.unit === "board") ||
                 RANGE_PACKAGE_QUANTITY_ITEMS[category]?.includes(item.name)
                   ? { quantity: Number(quantities[category]?.[item.name]) || 0 }
                   : {}),

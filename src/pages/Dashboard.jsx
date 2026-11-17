@@ -261,7 +261,8 @@ export default function Dashboard() {
                     salesRevenue += itemRevenue;
                   } else if (
                     category.category === "Range Fee Rates" &&
-                    item.name === "Target Board"
+                    (item.name === "Target Board" ||
+                      item.inventoryName === "Target Board")
                   ) {
                     salesRevenue += itemRevenue;
                   } else {
@@ -299,7 +300,8 @@ export default function Dashboard() {
                   salesRevenue += itemRevenue;
                 } else if (
                   item.category === "Range Fee Rates" &&
-                  item.name === "Target Board"
+                  (item.name === "Target Board" ||
+                    item.inventoryName === "Target Board")
                 ) {
                   salesRevenue += itemRevenue;
                 } else {

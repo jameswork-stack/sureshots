@@ -160,6 +160,59 @@
   opacity: 0.65;
 }
 
+.ammunition-rename-form {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 14px 22px;
+  border-bottom: 1px solid #edf1f5;
+  background: #f8fafc;
+}
+
+.ammunition-rename-form label {
+  color: #526174;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ammunition-rename-form input {
+  box-sizing: border-box;
+  width: min(320px, 100%);
+  min-height: 37px;
+  border: 1px solid #dce3eb;
+  border-radius: 7px;
+  padding: 8px 10px;
+  color: #172033;
+  font: inherit;
+  font-size: 12px;
+}
+
+.ammunition-rename-form button {
+  min-height: 37px;
+  border: 1px solid #dce3eb;
+  border-radius: 7px;
+  padding: 8px 12px;
+  background: #fff;
+  color: #526174;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ammunition-rename-form button[type="submit"] {
+  border-color: #172033;
+  background: #172033;
+  color: #fff;
+}
+
+.ammunition-rename-form button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .ammunition-list-message {
   padding: 28px 20px;
   color: #64748b;
@@ -173,7 +226,7 @@
 
 .ammunition-table {
   width: 100%;
-  min-width: 640px;
+  min-width: 680px;
   border-collapse: collapse;
   text-align: left;
 }
@@ -210,6 +263,76 @@
 
 .ammunition-stock-level {
   white-space: nowrap;
+}
+
+.ammunition-row-menu-wrap {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.ammunition-row-menu-button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: #fff;
+  color: #475569;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ammunition-row-menu-button:hover,
+.ammunition-row-menu-button[aria-expanded="true"] {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.ammunition-row-menu-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.ammunition-row-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 125px;
+  padding: 5px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.14);
+}
+
+.ammunition-row-menu button {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 5px;
+  padding: 8px 9px;
+  background: transparent;
+  color: #334155;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ammunition-row-menu button:hover,
+.ammunition-row-menu button:focus-visible {
+  background: #f1f5f9;
+  outline: none;
+}
+
+.ammunition-row-menu .ammunition-row-menu-remove {
+  color: #b91c1c;
+}
+
+.ammunition-row-menu .ammunition-row-menu-remove:hover {
+  background: #fef2f2;
 }
 
 .ammunition-add-stock {
@@ -289,6 +412,16 @@
 
   .ammunition-create-form {
     padding: 16px;
+  }
+
+  .ammunition-rename-form {
+    flex-wrap: wrap;
+    padding: 14px 16px;
+  }
+
+  .ammunition-rename-form input {
+    flex: 1 1 100%;
+    order: 1;
   }
 
   .ammunition-create-fields {

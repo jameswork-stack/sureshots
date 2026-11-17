@@ -5,6 +5,8 @@ import {
   getDocs,
   runTransaction,
   serverTimestamp,
+  setDoc,
+  updateDoc,
 } from "firebase/firestore";
 
 import { db } from "../firebase";
@@ -14,8 +16,10 @@ import {
 } from "./rangePackage";
 
 export const AMMUNITION_INVENTORY_COLLECTION = "ammunitionInventory";
+export const AMMUNITION_CATALOG_COLLECTION = "ammunitionCatalog";
 export const AMMUNITION_CATEGORY = "Ammunition Prices";
 export const CUSTOM_AMMUNITION_UNITS = ["piece", "round", "box of 50"];
+const TARGET_BOARD_NAME = "Target Board";
 
 const inventoryItems = [
   ...RANGE_PACKAGE_CATALOG[AMMUNITION_CATEGORY],
@@ -81,6 +85,7 @@ export const getCustomAmmunitionTypes = async () => {
     const data = inventoryDoc.data();
     if (data.custom !== true) return [];
 
+    if (data.active === false) return [];
     const name = normalizeAmmunitionName(
       typeof data.name === "string" ? data.name.trim() : ""
     );
@@ -94,20 +99,180 @@ export const getCustomAmmunitionTypes = async () => {
       throw new Error(`Invalid custom ammunition item in ${inventoryDoc.id}.`);
     }
 
-    return [{ name, unit: data.unit, unitPrice, custom: true }];
+    return [{
+      name,
+      inventoryName: decodeURIComponent(inventoryDoc.id),
+      unit: data.unit,
+      unitPrice,
+      custom: true,
+    }];
   });
 
   return items.sort((first, second) => first.name.localeCompare(second.name));
 };
 
+export const getAmmunitionTypes = async () => {
+  const [catalogSnapshot, inventorySnapshot] = await Promise.all([
+    getDocs(collection(db, AMMUNITION_CATALOG_COLLECTION)),
+    getDocs(collection(db, AMMUNITION_INVENTORY_COLLECTION)),
+  ]);
+  const catalogOverrides = new Map(
+    catalogSnapshot.docs.map((catalogDoc) => [
+      catalogDoc.id,
+      catalogDoc.data(),
+    ])
+  );
+  const builtInItems = RANGE_PACKAGE_CATALOG[AMMUNITION_CATEGORY].flatMap(
+    (item) => {
+      const catalogId = getAmmunitionInventoryId(item.name);
+      const override = catalogOverrides.get(catalogId);
+      if (override?.active === false) return [];
+      return [{
+        ...item,
+        name: typeof override?.name === "string" ? override.name : item.name,
+        inventoryName: item.name,
+        catalogId,
+        builtIn: true,
+      }];
+    }
+  );
+  const customItems = inventorySnapshot.docs.flatMap((inventoryDoc) => {
+    const data = inventoryDoc.data();
+    if (data.custom !== true || data.active === false) return [];
+
+    const name = normalizeAmmunitionName(
+      typeof data.name === "string" ? data.name.trim() : ""
+    );
+    const unitPrice = Number(data.unitPrice);
+    if (
+      !name ||
+      !CUSTOM_AMMUNITION_UNITS.includes(data.unit) ||
+      !Number.isFinite(unitPrice) ||
+      unitPrice < 0
+    ) {
+      throw new Error(`Invalid custom ammunition item in ${inventoryDoc.id}.`);
+    }
+
+    return [{
+      name,
+      inventoryName: decodeURIComponent(inventoryDoc.id),
+      unit: data.unit,
+      unitPrice,
+      custom: true,
+    }];
+  });
+
+  return [...builtInItems, ...customItems].sort((first, second) =>
+    first.name.localeCompare(second.name)
+  );
+};
+
+export const getTargetBoardItem = async () => {
+  const catalogId = getAmmunitionInventoryId(TARGET_BOARD_NAME);
+  const targetBoardRef = doc(
+    db,
+    AMMUNITION_CATALOG_COLLECTION,
+    catalogId
+  );
+  const targetBoardSnapshot = await getDoc(targetBoardRef);
+  const override = targetBoardSnapshot.exists()
+    ? targetBoardSnapshot.data()
+    : null;
+
+  if (override?.active === false) return null;
+
+  return {
+    ...RANGE_PACKAGE_CATALOG["Range Fee Rates"].find(
+      (item) => item.name === TARGET_BOARD_NAME
+    ),
+    name: typeof override?.name === "string" ? override.name : TARGET_BOARD_NAME,
+    inventoryName: TARGET_BOARD_NAME,
+    catalogId,
+    targetBoard: true,
+  };
+};
+
+export const renameAmmunitionItem = async (item, nextName) => {
+  const name = typeof nextName === "string" ? nextName.trim() : "";
+  if (!name) throw new Error("Enter an ammunition item name.");
+  const [ammunitionTypes, targetBoardItem] = await Promise.all([
+    getAmmunitionTypes(),
+    getTargetBoardItem(),
+  ]);
+  if (
+    [...ammunitionTypes, targetBoardItem].some(
+      (existingItem) =>
+        existingItem &&
+        existingItem.inventoryName !== item.inventoryName &&
+        existingItem.name.toLowerCase() === name.toLowerCase()
+    )
+  ) {
+    throw new Error("An ammunition item with this name already exists.");
+  }
+
+  if (item.builtIn || item.targetBoard) {
+    const catalogRef = doc(
+      db,
+      AMMUNITION_CATALOG_COLLECTION,
+      item.catalogId
+    );
+    await setDoc(
+      catalogRef,
+      {
+        catalogId: item.catalogId,
+        name,
+        active: true,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+    return;
+  }
+
+  const inventoryRef = doc(
+    db,
+    AMMUNITION_INVENTORY_COLLECTION,
+    getAmmunitionInventoryId(item.inventoryName || item.name)
+  );
+  await updateDoc(inventoryRef, { name, updatedAt: serverTimestamp() });
+};
+
+export const removeAmmunitionItem = async (item) => {
+  if (item.builtIn || item.targetBoard) {
+    await setDoc(
+      doc(db, AMMUNITION_CATALOG_COLLECTION, item.catalogId),
+      {
+        catalogId: item.catalogId,
+        name: item.name,
+        active: false,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+    return;
+  }
+
+  await updateDoc(
+    doc(
+      db,
+      AMMUNITION_INVENTORY_COLLECTION,
+      getAmmunitionInventoryId(item.inventoryName || item.name)
+    ),
+    { active: false, updatedAt: serverTimestamp() }
+  );
+};
+
 export const getAmmunitionUnitLabel = (
   ammunitionName,
-  customAmmunitionTypes = []
+  customAmmunitionTypes = [],
+  inventoryName = ammunitionName
 ) => {
   const normalizedLookupName = normalizeAmmunitionName(ammunitionName);
   const unit = [...inventoryItems, ...customAmmunitionTypes].find(
     (item) =>
-      normalizeAmmunitionName(item.name) === normalizedLookupName
+      normalizeAmmunitionName(item.name) === normalizedLookupName ||
+      normalizeAmmunitionName(item.name) ===
+        normalizeAmmunitionName(inventoryName)
   )?.unit;
 
   if (unit === "box of 50" || unit === "round") return "rounds";
@@ -212,7 +377,7 @@ export const getAmmunitionQuantities = (record) => {
     const catalogItem = inventoryItems.find(
       (inventoryItem) =>
         normalizeAmmunitionName(inventoryItem.name) ===
-        normalizeAmmunitionName(item.name)
+          normalizeAmmunitionName(item.inventoryName || item.name)
     );
     const isCustomAmmunition =
       item.category === AMMUNITION_CATEGORY ||
@@ -229,8 +394,10 @@ export const getAmmunitionQuantities = (record) => {
       throw new Error(`Missing unit for ammunition item ${item.name}.`);
     }
     const unitsPerQuantity = unit === "box of 50" ? 50 : 1;
-    quantities[item.name] =
-      (quantities[item.name] || 0) + enteredQuantity * unitsPerQuantity;
+    const inventoryName =
+      item.inventoryName || catalogItem?.inventoryName || item.name;
+    quantities[inventoryName] =
+      (quantities[inventoryName] || 0) + enteredQuantity * unitsPerQuantity;
   });
 
   return quantities;
@@ -296,7 +463,11 @@ export const adjustAmmunitionInventory = async (
   return nextQuantities;
 };
 
-export const addAmmunitionStock = async (ammunitionName, amount) => {
+export const addAmmunitionStock = async (
+  ammunitionName,
+  amount,
+  inventoryName = ammunitionName
+) => {
   if (!Number.isInteger(amount) || amount < 1) {
     throw new Error("Stock quantity must be a whole number of at least 1.");
   }
@@ -304,15 +475,13 @@ export const addAmmunitionStock = async (ammunitionName, amount) => {
   const inventoryRef = doc(
     db,
     AMMUNITION_INVENTORY_COLLECTION,
-    getAmmunitionInventoryId(ammunitionName)
+    getAmmunitionInventoryId(inventoryName)
   );
 
   return runTransaction(db, async (transaction) => {
     const snapshot = await transaction.get(inventoryRef);
     const isBuiltIn = inventoryItems.some(
-      (item) =>
-        normalizeAmmunitionName(item.name) ===
-        normalizeAmmunitionName(ammunitionName)
+      (item) => item.name === inventoryName
     );
     if (!isBuiltIn && (!snapshot.exists() || snapshot.data().custom !== true)) {
       throw new Error("Select a valid inventory item.");
@@ -337,7 +506,11 @@ export const addAmmunitionStock = async (ammunitionName, amount) => {
   });
 };
 
-export const removeAmmunitionStock = async (ammunitionName, amount) => {
+export const removeAmmunitionStock = async (
+  ammunitionName,
+  amount,
+  inventoryName = ammunitionName
+) => {
   if (!Number.isInteger(amount) || amount < 1) {
     throw new Error("Stock-out quantity must be a whole number of at least 1.");
   }
@@ -345,15 +518,13 @@ export const removeAmmunitionStock = async (ammunitionName, amount) => {
   const inventoryRef = doc(
     db,
     AMMUNITION_INVENTORY_COLLECTION,
-    getAmmunitionInventoryId(ammunitionName)
+    getAmmunitionInventoryId(inventoryName)
   );
 
   return runTransaction(db, async (transaction) => {
     const snapshot = await transaction.get(inventoryRef);
     const isBuiltIn = inventoryItems.some(
-      (item) =>
-        normalizeAmmunitionName(item.name) ===
-        normalizeAmmunitionName(ammunitionName)
+      (item) => item.name === inventoryName
     );
     if (!isBuiltIn && (!snapshot.exists() || snapshot.data().custom !== true)) {
       throw new Error("Select a valid inventory item.");

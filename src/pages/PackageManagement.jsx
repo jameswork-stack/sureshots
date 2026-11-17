@@ -12,7 +12,8 @@ import {
 
 import { db } from "../firebase";
 import {
-  getCustomAmmunitionTypes,
+  getTargetBoardItem,
+  getAmmunitionTypes,
 } from "../utils/ammunitionInventory";
 import { RANGE_PACKAGE_CATALOG } from "../utils/rangePackage";
 import "../styles/packageManagement.css";
@@ -28,8 +29,7 @@ const EMPTY_PACKAGE = {
   price: "",
 };
 
-const builtInAmmunitionTypes = RANGE_PACKAGE_CATALOG["Ammunition Prices"];
-const targetBoardItem = RANGE_PACKAGE_CATALOG["Range Fee Rates"].find(
+const defaultTargetBoardItem = RANGE_PACKAGE_CATALOG["Range Fee Rates"].find(
   (item) => item.name === "Target Board"
 );
 
@@ -42,7 +42,10 @@ const formatCurrency = (amount) =>
 
 export default function PackageManagement() {
   const [packages, setPackages] = useState([]);
-  const [customAmmunitionTypes, setCustomAmmunitionTypes] = useState([]);
+  const [ammunitionTypes, setAmmunitionTypes] = useState([]);
+  const [targetBoardItem, setTargetBoardItem] = useState(
+    defaultTargetBoardItem
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pageError, setPageError] = useState("");
@@ -51,10 +54,6 @@ export default function PackageManagement() {
   const [editingPackageId, setEditingPackageId] = useState(null);
   const [openMenu, setOpenMenu] = useState(null);
   const [packageForm, setPackageForm] = useState(EMPTY_PACKAGE);
-  const ammunitionTypes = useMemo(
-    () => [...builtInAmmunitionTypes, ...customAmmunitionTypes],
-    [customAmmunitionTypes]
-  );
 
   useEffect(() => {
     const loadPackages = async () => {
@@ -82,9 +81,10 @@ export default function PackageManagement() {
 
   useEffect(() => {
     let isCurrent = true;
-    getCustomAmmunitionTypes()
-      .then((items) => {
-        if (isCurrent) setCustomAmmunitionTypes(items);
+    Promise.all([getAmmunitionTypes(), getTargetBoardItem()])
+      .then(([items, targetBoard]) => {
+        if (isCurrent) setAmmunitionTypes(items);
+        if (isCurrent) setTargetBoardItem(targetBoard);
       })
       .catch((loadError) => {
         console.error("Error loading custom ammunition items:", loadError);
@@ -549,7 +549,7 @@ export default function PackageManagement() {
                       </p>
                     ))}
                     <p className="package-card-ammunition">
-                      {targetBoardItem.name} ·{" "}
+                      {targetBoardItem?.name || "Target Board"} ·{" "}
                       {Number.isInteger(packageItem.targetBoardQuantity)
                         ? `${packageItem.targetBoardQuantity} ${
                             packageItem.targetBoardQuantity === 1
@@ -715,7 +715,7 @@ export default function PackageManagement() {
 
                 <div className="package-form-group">
                   <label htmlFor="package-target-board-quantity">
-                    {targetBoardItem.name} quantity
+                    {targetBoardItem?.name || "Target Board"} quantity
                   </label>
                   <input
                     id="package-target-board-quantity"

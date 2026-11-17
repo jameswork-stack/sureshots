@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { collection, onSnapshot } from "firebase/firestore";
 
 import { db } from "../firebase";
@@ -8,15 +9,19 @@ import {
   createAmmunitionItem,
   CUSTOM_AMMUNITION_UNITS,
   getAmmunitionInventoryId,
+  getAmmunitionTypes,
   getAmmunitionUnitLabel,
+  getTargetBoardItem,
+  removeAmmunitionItem,
   removeAmmunitionStock,
+  renameAmmunitionItem,
   syncLegacyAmmunitionNames,
 } from "../utils/ammunitionInventory";
 import { RANGE_PACKAGE_CATALOG } from "../utils/rangePackage";
 import "../styles/ammunitionManagement.css";
 
 const ammunitionTypes = RANGE_PACKAGE_CATALOG["Ammunition Prices"];
-const targetBoardItem = RANGE_PACKAGE_CATALOG["Range Fee Rates"].find(
+const defaultTargetBoardItem = RANGE_PACKAGE_CATALOG["Range Fee Rates"].find(
   (item) => item.name === "Target Board"
 );
 const EMPTY_AMMUNITION_ITEM = {
@@ -28,7 +33,12 @@ const EMPTY_AMMUNITION_ITEM = {
 
 export default function AmmunitionManagement() {
   const [stockLevels, setStockLevels] = useState({});
+  const [builtInAmmunitionTypes, setBuiltInAmmunitionTypes] =
+    useState(ammunitionTypes);
   const [customAmmunitionTypes, setCustomAmmunitionTypes] = useState([]);
+  const [targetBoardItem, setTargetBoardItem] = useState(
+    defaultTargetBoardItem
+  );
   const [stockInputs, setStockInputs] = useState({});
   const [loading, setLoading] = useState(true);
   const [savingName, setSavingName] = useState("");
@@ -40,15 +50,38 @@ export default function AmmunitionManagement() {
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [success, setSuccess] = useState("");
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [menuPosition, setMenuPosition] = useState(null);
+  const [editingItem, setEditingItem] = useState(null);
+  const [editingName, setEditingName] = useState("");
+  const [itemActionLoading, setItemActionLoading] = useState(false);
   const inventoryItems = [
-    ...ammunitionTypes,
+    ...builtInAmmunitionTypes,
     ...customAmmunitionTypes,
     targetBoardItem,
-  ];
+  ].filter(Boolean);
+  const selectedMenuItem = inventoryItems.find(
+    (item) => getAmmunitionInventoryId(item.inventoryName || item.name) === openMenuId
+  );
   const startingStockUnit =
     newAmmunitionItem.unit === "piece" ? "pieces" : "rounds";
 
   useEffect(() => {
+    let isCurrent = true;
+    Promise.all([getAmmunitionTypes(), getTargetBoardItem()])
+      .then(([items, targetBoard]) => {
+        if (isCurrent) {
+          setBuiltInAmmunitionTypes(items.filter((item) => item.builtIn));
+          setTargetBoardItem(targetBoard);
+        }
+      })
+      .catch((catalogError) => {
+        console.error("Error loading ammunition catalog:", catalogError);
+        if (isCurrent) {
+          setLoadError("Unable to load ammunition catalog. Please try again.");
+        }
+      });
+
     syncLegacyAmmunitionNames().catch((syncError) => {
       console.error("Error syncing legacy ammunition names:", syncError);
     });
@@ -69,6 +102,7 @@ export default function AmmunitionManagement() {
             }
             records[inventoryDoc.id] = quantity;
             if (data.custom === true) {
+              if (data.active === false) return;
               const unitPrice = Number(data.unitPrice);
               if (
                 typeof data.name !== "string" ||
@@ -81,6 +115,7 @@ export default function AmmunitionManagement() {
               }
               customItems.push({
                 name: data.name.trim(),
+                inventoryName: decodeURIComponent(inventoryDoc.id),
                 unit: data.unit,
                 unitPrice,
                 custom: true,
@@ -107,8 +142,53 @@ export default function AmmunitionManagement() {
       }
     );
 
-    return unsubscribe;
+    return () => {
+      isCurrent = false;
+      unsubscribe();
+    };
   }, []);
+
+  useEffect(() => {
+    if (!openMenuId) return undefined;
+    const closeMenu = () => {
+      setOpenMenuId(null);
+      setMenuPosition(null);
+    };
+
+    window.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("resize", closeMenu);
+    return () => {
+      window.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("resize", closeMenu);
+    };
+  }, [openMenuId]);
+
+  const toggleMenu = (item, event) => {
+    const inventoryId = getAmmunitionInventoryId(
+      item.inventoryName || item.name
+    );
+    if (openMenuId === inventoryId) {
+      setOpenMenuId(null);
+      setMenuPosition(null);
+      return;
+    }
+
+    const buttonRect = event.currentTarget.getBoundingClientRect();
+    const menuHeight = 82;
+    setMenuPosition({
+      top:
+        buttonRect.bottom + menuHeight + 4 > window.innerHeight
+          ? buttonRect.top - menuHeight - 4
+          : buttonRect.bottom + 4,
+      left: Math.max(8, buttonRect.right - 140),
+    });
+    setOpenMenuId(inventoryId);
+  };
+
+  const closeMenu = () => {
+    setOpenMenuId(null);
+    setMenuPosition(null);
+  };
 
   const handleCreateItem = async (event) => {
     event.preventDefault();
@@ -150,7 +230,104 @@ export default function AmmunitionManagement() {
     }
   };
 
-  const handleAddStock = async (ammunitionName) => {
+  const handleStartRename = (item) => {
+    closeMenu();
+    setEditingItem(item);
+    setEditingName(item.name);
+    setError("");
+    setSuccess("");
+  };
+
+  const handleRenameItem = async (event) => {
+    event.preventDefault();
+    if (!editingItem) return;
+
+    setError("");
+    setSuccess("");
+    setItemActionLoading(true);
+    try {
+      await renameAmmunitionItem(editingItem, editingName);
+      if (editingItem.targetBoard) {
+        setTargetBoardItem((current) =>
+          current ? { ...current, name: editingName.trim() } : current
+        );
+      } else if (editingItem.builtIn) {
+        setBuiltInAmmunitionTypes((current) =>
+          current.map((item) =>
+            item.catalogId === editingItem.catalogId
+              ? { ...item, name: editingName.trim() }
+              : item
+          )
+        );
+      } else {
+        setCustomAmmunitionTypes((current) =>
+          current.map((item) =>
+            item.inventoryName === editingItem.inventoryName
+              ? { ...item, name: editingName.trim() }
+              : item
+          )
+        );
+      }
+      setSuccess(`Renamed ${editingItem.name} to ${editingName.trim()}.`);
+      setEditingItem(null);
+      setEditingName("");
+    } catch (renameError) {
+      console.error("Error renaming ammunition item:", renameError);
+      setError(
+        renameError instanceof Error
+          ? `Unable to rename ammunition item. ${renameError.message}`
+          : "Unable to rename ammunition item. Please try again."
+      );
+    } finally {
+      setItemActionLoading(false);
+    }
+  };
+
+  const handleRemoveItem = async (item) => {
+    closeMenu();
+    setError("");
+    setSuccess("");
+    if (
+      !window.confirm(
+        `Remove ${item.name} from future ammunition selections? Existing booking and sales records will be kept.`
+      )
+    ) {
+      return;
+    }
+
+    setItemActionLoading(true);
+    try {
+      await removeAmmunitionItem(item);
+      if (item.targetBoard) {
+        setTargetBoardItem(null);
+      } else if (item.builtIn) {
+        setBuiltInAmmunitionTypes((current) =>
+          current.filter((entry) => entry.catalogId !== item.catalogId)
+        );
+      } else {
+        setCustomAmmunitionTypes((current) =>
+          current.filter(
+            (entry) => entry.inventoryName !== item.inventoryName
+          )
+        );
+      }
+      setSuccess(`Removed ${item.name} from future selections.`);
+    } catch (removeError) {
+      console.error("Error removing ammunition item:", removeError);
+      setError(
+        removeError instanceof Error
+          ? `Unable to remove ammunition item. ${removeError.message}`
+          : "Unable to remove ammunition item. Please try again."
+      );
+    } finally {
+      setItemActionLoading(false);
+    }
+  };
+
+  const handleAddStock = async (
+    ammunitionName,
+    inventoryName = ammunitionName
+  ) => {
     setError("");
     setSuccess("");
     const input = stockInputs[ammunitionName] || "";
@@ -162,8 +339,12 @@ export default function AmmunitionManagement() {
 
     setSavingName(ammunitionName);
     try {
-      const updatedStock = await addAmmunitionStock(ammunitionName, amount);
-      const inventoryId = getAmmunitionInventoryId(ammunitionName);
+      const updatedStock = await addAmmunitionStock(
+        ammunitionName,
+        amount,
+        inventoryName
+      );
+      const inventoryId = getAmmunitionInventoryId(inventoryName);
       setStockLevels((current) => ({
         ...current,
         [inventoryId]: updatedStock,
@@ -172,7 +353,8 @@ export default function AmmunitionManagement() {
       setSuccess(
         `Added ${amount} ${getAmmunitionUnitLabel(
           ammunitionName,
-          customAmmunitionTypes
+          customAmmunitionTypes,
+          inventoryName
         )} for ${ammunitionName}.`
       );
     } catch (saveError) {
@@ -187,7 +369,10 @@ export default function AmmunitionManagement() {
     }
   };
 
-  const handleStockOut = async (ammunitionName) => {
+  const handleStockOut = async (
+    ammunitionName,
+    inventoryName = ammunitionName
+  ) => {
     setError("");
     setSuccess("");
     const input = stockInputs[ammunitionName] || "";
@@ -199,8 +384,12 @@ export default function AmmunitionManagement() {
 
     setSavingName(ammunitionName);
     try {
-      const updatedStock = await removeAmmunitionStock(ammunitionName, amount);
-      const inventoryId = getAmmunitionInventoryId(ammunitionName);
+      const updatedStock = await removeAmmunitionStock(
+        ammunitionName,
+        amount,
+        inventoryName
+      );
+      const inventoryId = getAmmunitionInventoryId(inventoryName);
       setStockLevels((current) => ({
         ...current,
         [inventoryId]: updatedStock,
@@ -209,7 +398,8 @@ export default function AmmunitionManagement() {
       setSuccess(
         `Stocked out ${amount} ${getAmmunitionUnitLabel(
           ammunitionName,
-          customAmmunitionTypes
+          customAmmunitionTypes,
+          inventoryName
         )} for ${ammunitionName}.`
       );
     } catch (stockOutError) {
@@ -226,6 +416,36 @@ export default function AmmunitionManagement() {
 
   return (
     <main className="ammunition-management-page">
+      {selectedMenuItem && menuPosition &&
+        createPortal(
+          <div
+            className="ammunition-row-menu"
+            role="menu"
+            style={{
+              position: "fixed",
+              top: menuPosition.top,
+              left: menuPosition.left,
+            }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleStartRename(selectedMenuItem)}
+            >
+              Edit
+            </button>
+            <button
+              className="ammunition-row-menu-remove"
+              type="button"
+              role="menuitem"
+              onClick={() => handleRemoveItem(selectedMenuItem)}
+            >
+              Remove
+            </button>
+          </div>,
+          document.body
+        )}
+
       <header className="ammunition-management-header">
         <div>
           <p className="ammunition-management-eyebrow">INVENTORY MANAGEMENT</p>
@@ -369,6 +589,31 @@ export default function AmmunitionManagement() {
           </form>
         )}
 
+        {editingItem && (
+          <form
+            className="ammunition-rename-form"
+            onSubmit={handleRenameItem}
+          >
+            <label htmlFor="rename-ammunition-item">Rename item</label>
+            <input
+              id="rename-ammunition-item"
+              type="text"
+              value={editingName}
+              onChange={(event) => setEditingName(event.target.value)}
+              maxLength="100"
+              required
+              disabled={itemActionLoading}
+              autoFocus
+            />
+            <button type="button" onClick={() => setEditingItem(null)}>
+              Cancel
+            </button>
+            <button type="submit" disabled={itemActionLoading}>
+              {itemActionLoading ? "Saving..." : "Save name"}
+            </button>
+          </form>
+        )}
+
         {loading ? (
           <p className="ammunition-list-message" role="status">
             Loading ammunition stock...
@@ -385,14 +630,17 @@ export default function AmmunitionManagement() {
                   <th>Inventory item</th>
                   <th>In stock</th>
                   <th>Stock actions</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {inventoryItems.map((item) => {
-                  const inventoryId = getAmmunitionInventoryId(item.name);
+                  const inventoryName = item.inventoryName || item.name;
+                  const inventoryId = getAmmunitionInventoryId(inventoryName);
                   const unit = getAmmunitionUnitLabel(
                     item.name,
-                    customAmmunitionTypes
+                    customAmmunitionTypes,
+                    inventoryName
                   );
                   const isSaving = savingName === item.name;
                   return (
@@ -430,7 +678,9 @@ export default function AmmunitionManagement() {
                           />
                           <button
                             type="button"
-                            onClick={() => handleAddStock(item.name)}
+                            onClick={() =>
+                              handleAddStock(item.name, inventoryName)
+                            }
                             disabled={Boolean(savingName)}
                           >
                             {isSaving ? "Saving..." : "Add stock"}
@@ -438,12 +688,31 @@ export default function AmmunitionManagement() {
                           <button
                             className="ammunition-stock-out-button"
                             type="button"
-                            onClick={() => handleStockOut(item.name)}
+                            onClick={() =>
+                              handleStockOut(item.name, inventoryName)
+                            }
                             disabled={Boolean(savingName)}
                           >
                             {isSaving ? "Saving..." : "Stock out"}
                           </button>
                         </div>
+                      </td>
+                      <td>
+                        {(item.builtIn || item.custom || item.targetBoard) && (
+                          <div className="ammunition-row-menu-wrap">
+                            <button
+                              className="ammunition-row-menu-button"
+                              type="button"
+                              aria-label={`Actions for ${item.name}`}
+                              aria-expanded={openMenuId === inventoryId}
+                              aria-haspopup="menu"
+                              disabled={itemActionLoading}
+                              onClick={(event) => toggleMenu(item, event)}
+                            >
+                              <span aria-hidden="true">⋮</span>
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );

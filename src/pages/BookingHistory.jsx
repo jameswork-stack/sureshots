@@ -113,7 +113,8 @@ export default function BookingHistory() {
     const hasQuantity =
       category === "Ammunition Prices" ||
       (category === "Range Fee Rates" &&
-        ["Range Fee", "Target Board"].includes(item.name));
+        (["Range Fee", "Target Board"].includes(item.name) ||
+          item.unit === "board"));
 
     if (!hasQuantity) {
       return getPackageItemRate(item);

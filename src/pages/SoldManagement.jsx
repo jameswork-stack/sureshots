@@ -20,7 +20,8 @@ import {
 import {
   AMMUNITION_CATEGORY,
   adjustAmmunitionInventory,
-  getCustomAmmunitionTypes,
+  getAmmunitionTypes,
+  getTargetBoardItem,
 } from "../utils/ammunitionInventory";
 import "../styles/bookingManagement.css";
 import "../styles/soldManagement.css";
@@ -94,16 +95,26 @@ export default function SoldManagement() {
   const [quantities, setQuantities] = useState({});
   const [productLines, setProductLines] = useState([]);
   const [otherItem, setOtherItem] = useState(emptyOtherItem);
-  const [customAmmunitionTypes, setCustomAmmunitionTypes] = useState([]);
+  const [ammunitionTypes, setAmmunitionTypes] = useState([]);
+  const [targetBoardItem, setTargetBoardItem] = useState(
+    RANGE_PACKAGE_CATALOG["Range Fee Rates"].find(
+      (item) => item.name === "Target Board"
+    )
+  );
   const rangePackageCatalog = useMemo(
     () => ({
       ...RANGE_PACKAGE_CATALOG,
-      [AMMUNITION_CATEGORY]: [
-        ...RANGE_PACKAGE_CATALOG[AMMUNITION_CATEGORY],
-        ...customAmmunitionTypes,
-      ],
+      [AMMUNITION_CATEGORY]: ammunitionTypes,
+      "Range Fee Rates": RANGE_PACKAGE_CATALOG["Range Fee Rates"].flatMap(
+        (item) =>
+          item.name === "Target Board"
+            ? targetBoardItem
+              ? [targetBoardItem]
+              : []
+            : [item]
+      ),
     }),
-    [customAmmunitionTypes]
+    [ammunitionTypes, targetBoardItem]
   );
 
   const loadSoldItems = useCallback(async () => {
@@ -170,9 +181,12 @@ export default function SoldManagement() {
 
   useEffect(() => {
     let isCurrent = true;
-    getCustomAmmunitionTypes()
-      .then((items) => {
-        if (isCurrent) setCustomAmmunitionTypes(items);
+    Promise.all([getAmmunitionTypes(), getTargetBoardItem()])
+      .then(([items, targetBoard]) => {
+        if (isCurrent) {
+          setAmmunitionTypes(items);
+          setTargetBoardItem(targetBoard);
+        }
       })
       .catch((loadError) => {
         console.error("Error loading custom ammunition items:", loadError);

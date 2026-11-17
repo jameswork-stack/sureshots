@@ -17,7 +17,8 @@ import { formatDisplayDate } from "../utils/date";
 import {
   AMMUNITION_CATEGORY,
   adjustAmmunitionInventory,
-  getCustomAmmunitionTypes,
+  getAmmunitionTypes,
+  getTargetBoardItem,
 } from "../utils/ammunitionInventory";
 import {
   RANGE_PACKAGE_CATALOG,
@@ -144,7 +145,12 @@ const [booking, setBooking] = useState({
 const [selectedRangePackageItems, setSelectedRangePackageItems] = useState({});
   const [rangePackageItemQuantities, setRangePackageItemQuantities] = useState({});
     const [managedPackages, setManagedPackages] = useState([]);
-  const [customAmmunitionTypes, setCustomAmmunitionTypes] = useState([]);
+  const [ammunitionTypes, setAmmunitionTypes] = useState([]);
+    const [targetBoardItem, setTargetBoardItem] = useState(
+      RANGE_PACKAGE_CATALOG["Range Fee Rates"].find(
+        (item) => item.name === "Target Board"
+      )
+    );
     const [managedPackageCategory, setManagedPackageCategory] = useState("");
     const [selectedManagedPackageId, setSelectedManagedPackageId] = useState("");
     const [managedPackageError, setManagedPackageError] = useState("");
@@ -162,13 +168,17 @@ const [selectedRangePackageItems, setSelectedRangePackageItems] = useState({});
   const managedPackageCategories = [
     ...new Set(managedPackages.map((packageItem) => packageItem.category)),
   ].filter(Boolean);
-  const ammunitionTypes = [
-    ...RANGE_PACKAGE_CATALOG[AMMUNITION_CATEGORY],
-    ...customAmmunitionTypes,
-  ];
   const rangePackageCatalog = {
     ...RANGE_PACKAGE_CATALOG,
     [AMMUNITION_CATEGORY]: ammunitionTypes,
+    "Range Fee Rates": RANGE_PACKAGE_CATALOG["Range Fee Rates"].flatMap(
+      (item) =>
+        item.name === "Target Board"
+          ? targetBoardItem
+            ? [targetBoardItem]
+            : []
+          : [item]
+    ),
   };
   const packagesInSelectedCategory = managedPackages.filter(
     (packageItem) => packageItem.category === managedPackageCategory
@@ -266,9 +276,12 @@ const [selectedRangePackageItems, setSelectedRangePackageItems] = useState({});
 
   useEffect(() => {
     let isCurrent = true;
-    getCustomAmmunitionTypes()
-      .then((items) => {
-        if (isCurrent) setCustomAmmunitionTypes(items);
+    Promise.all([getAmmunitionTypes(), getTargetBoardItem()])
+      .then(([items, targetBoard]) => {
+        if (isCurrent) {
+          setAmmunitionTypes(items);
+          setTargetBoardItem(targetBoard);
+        }
       })
       .catch((loadError) => {
         console.error("Error loading custom ammunition items:", loadError);
@@ -1208,6 +1221,7 @@ const handleCancelBooking = async (id) => {
                       name: ammunition.name,
                       unitPrice: ammunition.unitPrice,
                       unit: ammunition.unit,
+                      inventoryName: ammunition.inventoryName || ammunition.name,
                       quantity: Number(ammoQuantity),
                       includedInPackagePrice: true,
                     },
@@ -1216,20 +1230,25 @@ const handleCancelBooking = async (id) => {
             }
           ),
         },
-        {
-          category: "Range Fee Rates",
-          items: [
-            {
-              name: "Target Board",
-              unitPrice: RANGE_PACKAGE_CATALOG["Range Fee Rates"].find(
-                (item) => item.name === "Target Board"
-              ).unitPrice,
-              unit: "board",
-              quantity: Number(selectedManagedPackage.targetBoardQuantity),
-              includedInPackagePrice: true,
-            },
-          ],
-        },
+        ...(targetBoardItem
+          ? [
+              {
+                category: "Range Fee Rates",
+                items: [
+                  {
+                    name: targetBoardItem.name,
+                    unitPrice: targetBoardItem.unitPrice,
+                    unit: targetBoardItem.unit,
+                    inventoryName: targetBoardItem.inventoryName,
+                    quantity: Number(
+                      selectedManagedPackage.targetBoardQuantity
+                    ),
+                    includedInPackagePrice: true,
+                  },
+                ],
+              },
+            ]
+          : []),
       ].filter(({ items }) => items.length > 0)
     : [];
   const combinedContentsByCategory = new Map();

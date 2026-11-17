@@ -318,7 +318,9 @@ export default function DashboardRecords() {
           const unitPrice = Number(item.unitPrice);
           if (
             (item.category === "Range Fee Rates" &&
-              (item.name === "Range Fee" || item.name === "Target Board")) ||
+              (item.name === "Range Fee" ||
+                item.name === "Target Board" ||
+                item.inventoryName === "Target Board")) ||
             !Number.isFinite(quantity) ||
             quantity < 0 ||
             !Number.isFinite(unitPrice)
@@ -349,7 +351,8 @@ export default function DashboardRecords() {
       const targetBoardRevenue = items.reduce((total, item) => {
         if (
           item.category !== "Range Fee Rates" ||
-          item.name !== "Target Board"
+          (item.name !== "Target Board" &&
+            item.inventoryName !== "Target Board")
         ) {
           return total;
         }
