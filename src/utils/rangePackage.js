@@ -1,3 +1,22 @@
+export const AMMUNITION_NAME_ALIASES = {
+  "9m.m teflon": "9mm teflon",
+  "9m.m Teflon": "9mm teflon",
+  "9MM teflon": "9mm teflon",
+  "9MM Teflon": "9mm teflon",
+};
+
+export const normalizeAmmunitionName = (name) => {
+  if (typeof name !== "string") return name;
+
+  const normalizedName = name.trim().replace(/\s+/g, " ");
+  const alias = Object.entries(AMMUNITION_NAME_ALIASES).find(
+    ([legacyName]) =>
+      legacyName.toLowerCase() === normalizedName.toLowerCase()
+  );
+
+  return alias ? alias[1] : normalizedName;
+};
+
 export const RANGE_PACKAGE_CATALOG = {
   "Range Fee Rates": [
     { name: "Range Fee", unitPrice: 800, unit: "booking" },
@@ -28,7 +47,7 @@ export const RANGE_PACKAGE_CATALOG = {
     { name: "9MM FMJ", unitPrice: 35, unit: "piece" },
     { name: "12 Gauge Birdshots", unitPrice: 60, unit: "piece" },
     { name: "5.56", unitPrice: 75, unit: "piece" },
-    { name: "9m.m Teflon", unitPrice: 20, unit: "piece" },
+    { name: "9mm teflon", unitPrice: 20, unit: "piece" },
     { name: "40 cal teflon", unitPrice: 20, unit: "piece" },
     { name: "45 acp teflon", unitPrice: 28, unit: "piece" },
   ],

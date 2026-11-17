@@ -10,6 +10,7 @@ import {
   getAmmunitionInventoryId,
   getAmmunitionUnitLabel,
   removeAmmunitionStock,
+  syncLegacyAmmunitionNames,
 } from "../utils/ammunitionInventory";
 import { RANGE_PACKAGE_CATALOG } from "../utils/rangePackage";
 import "../styles/ammunitionManagement.css";
@@ -48,6 +49,10 @@ export default function AmmunitionManagement() {
     newAmmunitionItem.unit === "piece" ? "pieces" : "rounds";
 
   useEffect(() => {
+    syncLegacyAmmunitionNames().catch((syncError) => {
+      console.error("Error syncing legacy ammunition names:", syncError);
+    });
+
     const unsubscribe = onSnapshot(
       collection(db, AMMUNITION_INVENTORY_COLLECTION),
       (snapshot) => {

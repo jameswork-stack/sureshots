@@ -1,13 +1,17 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   runTransaction,
   serverTimestamp,
 } from "firebase/firestore";
 
 import { db } from "../firebase";
-import { RANGE_PACKAGE_CATALOG } from "./rangePackage";
+import {
+  RANGE_PACKAGE_CATALOG,
+  normalizeAmmunitionName,
+} from "./rangePackage";
 
 export const AMMUNITION_INVENTORY_COLLECTION = "ammunitionInventory";
 export const AMMUNITION_CATEGORY = "Ammunition Prices";
@@ -21,7 +25,53 @@ const inventoryItems = [
 ];
 
 export const getAmmunitionInventoryId = (ammunitionName) =>
-  encodeURIComponent(ammunitionName);
+  encodeURIComponent(normalizeAmmunitionName(ammunitionName));
+
+export const syncLegacyAmmunitionNames = async () => {
+  const snapshot = await getDocs(collection(db, AMMUNITION_INVENTORY_COLLECTION));
+
+  for (const inventoryDoc of snapshot.docs) {
+    const data = inventoryDoc.data();
+    const originalName = typeof data.name === "string" ? data.name.trim() : "";
+    if (!originalName || normalizeAmmunitionName(originalName) === originalName) {
+      continue;
+    }
+
+    const normalizedName = normalizeAmmunitionName(originalName);
+    const normalizedId = getAmmunitionInventoryId(normalizedName);
+    const normalizedRef = doc(db, AMMUNITION_INVENTORY_COLLECTION, normalizedId);
+
+    await runTransaction(db, async (transaction) => {
+      const legacySnapshot = await transaction.get(inventoryDoc.ref);
+      const targetSnapshot = await transaction.get(normalizedRef);
+
+      if (!legacySnapshot.exists()) return;
+
+      const legacyData = legacySnapshot.data();
+      const targetData = targetSnapshot.exists() ? targetSnapshot.data() : {};
+      const mergedQuantity =
+        (Number(targetData.quantity) || 0) + (Number(legacyData.quantity) || 0);
+
+      transaction.set(
+        normalizedRef,
+        {
+          ...targetData,
+          name: normalizedName,
+          quantity: mergedQuantity,
+          unit: targetData.unit ?? legacyData.unit,
+          unitPrice: targetData.unitPrice ?? legacyData.unitPrice,
+          custom: targetData.custom ?? legacyData.custom,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      if (inventoryDoc.id !== normalizedId) {
+        transaction.delete(inventoryDoc.ref);
+      }
+    });
+  }
+};
 
 export const getCustomAmmunitionTypes = async () => {
   const snapshot = await getDocs(
@@ -31,7 +81,9 @@ export const getCustomAmmunitionTypes = async () => {
     const data = inventoryDoc.data();
     if (data.custom !== true) return [];
 
-    const name = typeof data.name === "string" ? data.name.trim() : "";
+    const name = normalizeAmmunitionName(
+      typeof data.name === "string" ? data.name.trim() : ""
+    );
     const unitPrice = Number(data.unitPrice);
     if (
       !name ||
@@ -52,8 +104,10 @@ export const getAmmunitionUnitLabel = (
   ammunitionName,
   customAmmunitionTypes = []
 ) => {
+  const normalizedLookupName = normalizeAmmunitionName(ammunitionName);
   const unit = [...inventoryItems, ...customAmmunitionTypes].find(
-    (item) => item.name === ammunitionName
+    (item) =>
+      normalizeAmmunitionName(item.name) === normalizedLookupName
   )?.unit;
 
   if (unit === "box of 50" || unit === "round") return "rounds";
@@ -75,7 +129,9 @@ export const createAmmunitionItem = async ({
   }
   if (
     inventoryItems.some(
-      (item) => item.name.toLowerCase() === normalizedName.toLowerCase()
+      (item) =>
+        normalizeAmmunitionName(item.name).toLowerCase() ===
+        normalizeAmmunitionName(normalizedName).toLowerCase()
     )
   ) {
     throw new Error("An inventory item with this name already exists.");
@@ -154,7 +210,9 @@ export const getAmmunitionQuantities = (record) => {
 
   getPackageItems(record).forEach((item) => {
     const catalogItem = inventoryItems.find(
-      (inventoryItem) => inventoryItem.name === item.name
+      (inventoryItem) =>
+        normalizeAmmunitionName(inventoryItem.name) ===
+        normalizeAmmunitionName(item.name)
     );
     const isCustomAmmunition =
       item.category === AMMUNITION_CATEGORY ||
@@ -252,7 +310,9 @@ export const addAmmunitionStock = async (ammunitionName, amount) => {
   return runTransaction(db, async (transaction) => {
     const snapshot = await transaction.get(inventoryRef);
     const isBuiltIn = inventoryItems.some(
-      (item) => item.name === ammunitionName
+      (item) =>
+        normalizeAmmunitionName(item.name) ===
+        normalizeAmmunitionName(ammunitionName)
     );
     if (!isBuiltIn && (!snapshot.exists() || snapshot.data().custom !== true)) {
       throw new Error("Select a valid inventory item.");
@@ -291,7 +351,9 @@ export const removeAmmunitionStock = async (ammunitionName, amount) => {
   return runTransaction(db, async (transaction) => {
     const snapshot = await transaction.get(inventoryRef);
     const isBuiltIn = inventoryItems.some(
-      (item) => item.name === ammunitionName
+      (item) =>
+        normalizeAmmunitionName(item.name) ===
+        normalizeAmmunitionName(ammunitionName)
     );
     if (!isBuiltIn && (!snapshot.exists() || snapshot.data().custom !== true)) {
       throw new Error("Select a valid inventory item.");
