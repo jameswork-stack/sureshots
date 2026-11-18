@@ -371,11 +371,27 @@ const isTimeBooked = (date, selectedSlot) => {
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    setBooking((prev) => ({
-      ...prev,
-      [name]: value,
-      ...(name === "durationMinutes" ? { bookTime: "" } : {}),
-    }));
+    setBooking((prev) => {
+      const next = {
+        ...prev,
+        [name]: value,
+        ...(name === "durationMinutes" ? { bookTime: "" } : {}),
+      };
+
+      if (name === "customerType") {
+        if (value === "member") {
+          next.bookName = prev.memberName || "";
+          next.price = "0";
+          next.discountPercent = "";
+        } else if (prev.customerType === "member") {
+          next.bookName = "";
+          next.price = "";
+          next.discountPercent = "";
+        }
+      }
+
+      return next;
+    });
 
     setError("");
   };
@@ -388,6 +404,9 @@ const isTimeBooked = (date, selectedSlot) => {
       ...current,
       memberId: selectedMember.id,
       memberName: selectedMember.memberName || "",
+      bookName: selectedMember.memberName || "",
+      price: "0",
+      discountPercent: "",
       memberType: selectedMember.membershipType || "Regular",
       memberNumber: selectedMember.memberNumber || "",
       expirationDate: selectedMember.expirationDate || "",
@@ -463,9 +482,9 @@ const isTimeBooked = (date, selectedSlot) => {
     setSelectedManagedPackageId("");
     setBooking((current) => ({
       ...current,
-      bookName: "",
+      bookName: current.customerType === "member" ? current.memberName : "",
       details: "",
-      price: "",
+      price: current.customerType === "member" ? "0" : "",
       discountPercent: "",
     }));
     setError("");
@@ -479,10 +498,17 @@ const isTimeBooked = (date, selectedSlot) => {
     if (selectedPackage) {
       setBooking((current) => ({
         ...current,
-        bookName: selectedPackage.gunName || "",
+        bookName:
+          current.customerType === "member"
+            ? current.memberName || ""
+            : selectedPackage.gunName || "",
         details: selectedPackage.details || "",
         price:
-          selectedPackage.price == null ? "" : String(selectedPackage.price),
+          current.customerType === "member"
+            ? "0"
+            : selectedPackage.price == null
+            ? ""
+            : String(selectedPackage.price),
       }));
     }
     setError("");
@@ -747,11 +773,15 @@ const isTimeBooked = (date, selectedSlot) => {
     }
 
     const isRangePackage = selectedPackageContents.length > 0;
-    const bookName = booking.bookName.trim();
+    const bookName =
+      booking.customerType === "member"
+        ? booking.memberName.trim()
+        : booking.bookName.trim();
     const details = isRangePackage
       ? rangePackageDetails
       : booking.details.trim();
-    const originalPrice = Number(booking.price);
+    const originalPrice =
+      booking.customerType === "member" ? 0 : Number(booking.price);
     const discountPercent =
       booking.discountPercent === "" ? 0 : Number(booking.discountPercent);
 
@@ -766,13 +796,14 @@ const isTimeBooked = (date, selectedSlot) => {
     }
 
     if (
-  !booking.customerType ||
-  !bookName ||
-  !details ||
-  booking.price === "" ||
-  !Number.isFinite(originalPrice) ||
-  originalPrice < 0 ||
-  !booking.bookDate ||
+      !booking.customerType ||
+      !bookName ||
+      !details ||
+      (booking.customerType !== "member" &&
+        (booking.price === "" ||
+          !Number.isFinite(originalPrice) ||
+          originalPrice < 0)) ||
+      !booking.bookDate ||
       !booking.bookTime ||
       !booking.durationMinutes
     ) {
@@ -1910,63 +1941,64 @@ const handleCancelBooking = async (id) => {
 
 
               {/* BOOK NAME */}
-
-              <div className="form-group">
-
-                <label>
-                  Package Name
-                </label>
-
-                <input
-                  type="text"
-                  name="bookName"
-                  placeholder="Enter book or package name"
-                  value={booking.bookName}
-                  onChange={handleChange}
-                  required
-                />
-
-              </div>
-
-              {/* PRICE */}
-
-              <div className="form-row">
+              {booking.customerType !== "member" && (
                 <div className="form-group">
-                  <label htmlFor="booking-package-price">Package Price</label>
+                  <label>
+                    Package Name
+                  </label>
+
                   <input
-                    id="booking-package-price"
-                    type="number"
-                    name="price"
-                    placeholder="Enter the package price"
-                    min="0"
-                    step="0.01"
-                    value={booking.price}
+                    type="text"
+                    name="bookName"
+                    placeholder="Enter book or package name"
+                    value={booking.bookName}
                     onChange={handleChange}
                     required
                   />
                 </div>
+              )}
 
-                <div className="form-group">
-                  <label htmlFor="booking-discount-percent">Discount (%)</label>
-                  <input
-                    id="booking-discount-percent"
-                    type="number"
-                    name="discountPercent"
-                    placeholder="1-100"
-                    min="1"
-                    max="100"
-                    step="1"
-                    value={booking.discountPercent}
-                    onChange={handleChange}
-                    aria-describedby="booking-discount-hint"
-                  />
-                  <small id="booking-discount-hint">
-                    Leave blank for no discount.
-                  </small>
+              {/* PRICE */}
+              {booking.customerType !== "member" && (
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="booking-package-price">Package Price</label>
+                    <input
+                      id="booking-package-price"
+                      type="number"
+                      name="price"
+                      placeholder="Enter the package price"
+                      min="0"
+                      step="0.01"
+                      value={booking.price}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="booking-discount-percent">Discount (%)</label>
+                    <input
+                      id="booking-discount-percent"
+                      type="number"
+                      name="discountPercent"
+                      placeholder="1-100"
+                      min="1"
+                      max="100"
+                      step="1"
+                      value={booking.discountPercent}
+                      onChange={handleChange}
+                      aria-describedby="booking-discount-hint"
+                    />
+                    <small id="booking-discount-hint">
+                      Leave blank for no discount.
+                    </small>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {discountedPackagePrice != null && (
+              {booking.customerType !== "member" &&
+                discountedPackagePrice != null && (
                 <div
                   className="booking-discount-summary"
                   id="booking-discount-summary"
