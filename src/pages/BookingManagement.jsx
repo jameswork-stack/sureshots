@@ -1352,9 +1352,20 @@ const handleCancelBooking = async (id) => {
           (name || "").toLocaleLowerCase().includes(normalizedSearch)
         )
     )
-    .sort((first, second) =>
-      (first.bookDate || "").localeCompare(second.bookDate || "")
-    );
+    .sort((first, second) => {
+      const dateOrder = (first.bookDate || "").localeCompare(
+        second.bookDate || ""
+      );
+      if (dateOrder !== 0) return dateOrder;
+
+      const firstStart = parseBookingTimeRange(first.bookTime)?.startMinutes;
+      const secondStart = parseBookingTimeRange(second.bookTime)?.startMinutes;
+      if (firstStart != null && secondStart != null) {
+        return firstStart - secondStart;
+      }
+
+      return (first.bookTime || "").localeCompare(second.bookTime || "");
+    });
 
 
   return (
