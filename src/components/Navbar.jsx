@@ -71,7 +71,7 @@ export default function Navbar() {
             isActive ? "nav-link active" : "nav-link"
           }
         >
-          Sold Management
+          Point of Sale
         </NavLink>
 
         <NavLink

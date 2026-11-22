@@ -30,7 +30,6 @@
   color: #6b7280;
 }
 
-.sold-add-button,
 .sold-save-button {
   border: 0;
   border-radius: 8px;
@@ -41,16 +40,19 @@
   cursor: pointer;
 }
 
-.sold-add-button {
-  padding: 12px 18px;
-}
-
-.sold-add-button:hover,
 .sold-save-button:hover:not(:disabled) {
   background: #1d4ed8;
 }
 
+.sold-pos-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(390px, 0.9fr);
+  align-items: start;
+  gap: 20px;
+}
+
 .sold-list {
+  min-width: 0;
   overflow: hidden;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
@@ -152,6 +154,25 @@
   border-radius: 14px;
   background: #fff;
   box-shadow: 0 20px 55px rgba(15, 23, 42, 0.22);
+}
+
+.sold-entry-panel {
+  position: sticky;
+  top: 16px;
+  box-sizing: border-box;
+  width: 100%;
+  max-height: calc(100vh - 32px);
+  padding: 20px;
+  overflow-y: auto;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.08);
+}
+
+.sold-entry-panel .sold-product-row {
+  grid-template-columns: minmax(0, 1fr) minmax(90px, 0.65fr);
+}
+
+.sold-entry-panel .sold-product-row > label:first-child {
+  grid-column: 1 / -1;
 }
 
 .sold-form-header {
@@ -419,14 +440,21 @@
   display: none;
 }
 
+@media (max-width: 1050px) {
+  .sold-pos-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sold-entry-panel {
+    position: static;
+    max-height: none;
+  }
+}
+
 @media (max-width: 600px) {
   .sold-management-header {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .sold-add-button {
-    width: 100%;
   }
 
   .sold-form-card {

@@ -82,7 +82,6 @@ export default function SoldManagement() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [showForm, setShowForm] = useState(false);
   const [editingSaleId, setEditingSaleId] = useState(null);
   const [viewingSale, setViewingSale] = useState(null);
   const [printingSale, setPrintingSale] = useState(null);
@@ -335,7 +334,6 @@ export default function SoldManagement() {
     setProductLines([]);
     setOtherItem(emptyOtherItem);
     setError("");
-    setShowForm(false);
   };
 
   const openEditForm = (sale) => {
@@ -397,7 +395,6 @@ export default function SoldManagement() {
     setOpenMenuId(null);
     setMenuPosition(null);
     setError("");
-    setShowForm(true);
   };
 
   const closeActionMenu = () => {
@@ -754,90 +751,347 @@ export default function SoldManagement() {
           <h1>Sold Management</h1>
           <p>Record and review Range Package items and products sold.</p>
         </div>
-        <button
-          className="sold-add-button"
-          type="button"
-          onClick={() => {
-            setError("");
-            setShowForm(true);
-          }}
-        >
-          + Add Sold Items
-        </button>
       </header>
 
-      {error && !showForm && <p className="sold-page-error" role="alert">{error}</p>}
-
-      <section className="sold-list">
-        <div className="sold-list-header">
-          <h2>Sales</h2>
-          <span>{soldItems.length} records</span>
-        </div>
-        {loading ? (
-          <p className="sold-list-message" role="status">Loading sold items…</p>
-        ) : soldItems.length === 0 ? (
-          <p className="sold-list-message">No sold items recorded yet.</p>
-        ) : (
-          <div className="sold-table-wrap">
-            <table className="sold-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Sold To</th>
-                  <th>Total</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {soldItems.map((sale) => {
-                  return (
-                    <tr key={sale.id}>
-                      <td>{formatDisplayDate(sale.soldDate)}</td>
-                      <td>{sale.soldTo || "Walk-in sale"}</td>
-                      <td>{formatCurrency(getSaleTotal(sale))}</td>
-                      <td className="booking-action-cell">
-                        <button
-                          className="three-dot-btn"
-                          type="button"
-                          aria-label={`Actions for sale to ${sale.soldTo || "walk-in customer"}`}
-                          aria-haspopup="menu"
-                          aria-expanded={openMenuId === sale.id}
-                          onClick={(event) => {
-                            if (openMenuId === sale.id) {
-                              closeActionMenu();
-                              return;
-                            }
-                            const rect = event.currentTarget.getBoundingClientRect();
-                            const menuWidth = 200;
-                            const menuHeight = 190;
-                            const top =
-                              rect.bottom + menuHeight + 8 > window.innerHeight
-                                ? rect.top - menuHeight - 4
-                                : rect.bottom + 4;
-                            setMenuPosition({
-                              top: Math.max(
-                                8,
-                                Math.min(top, window.innerHeight - menuHeight - 8)
-                              ),
-                              left: Math.max(
-                                8,
-                                Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)
-                              ),
-                            });
-                            setOpenMenuId(sale.id);
-                          }}
-                        >
-                          ⋮
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      <div className="sold-pos-layout">
+        <section className="sold-list">
+          <div className="sold-list-header">
+            <h2>Sales</h2>
+            <span>{soldItems.length} records</span>
           </div>
-        )}
-      </section>
+          {loading ? (
+            <p className="sold-list-message" role="status">Loading sold items…</p>
+          ) : soldItems.length === 0 ? (
+            <p className="sold-list-message">No sold items recorded yet.</p>
+          ) : (
+            <div className="sold-table-wrap">
+              <table className="sold-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Sold To</th>
+                    <th>Total</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {soldItems.map((sale) => {
+                    return (
+                      <tr key={sale.id}>
+                        <td>{formatDisplayDate(sale.soldDate)}</td>
+                        <td>{sale.soldTo || "Walk-in sale"}</td>
+                        <td>{formatCurrency(getSaleTotal(sale))}</td>
+                        <td className="booking-action-cell">
+                          <button
+                            className="three-dot-btn"
+                            type="button"
+                            aria-label={`Actions for sale to ${sale.soldTo || "walk-in customer"}`}
+                            aria-haspopup="menu"
+                            aria-expanded={openMenuId === sale.id}
+                            onClick={(event) => {
+                              if (openMenuId === sale.id) {
+                                closeActionMenu();
+                                return;
+                              }
+                              const rect = event.currentTarget.getBoundingClientRect();
+                              const menuWidth = 200;
+                              const menuHeight = 190;
+                              const top =
+                                rect.bottom + menuHeight + 8 > window.innerHeight
+                                  ? rect.top - menuHeight - 4
+                                  : rect.bottom + 4;
+                              setMenuPosition({
+                                top: Math.max(
+                                  8,
+                                  Math.min(top, window.innerHeight - menuHeight - 8)
+                                ),
+                                left: Math.max(
+                                  8,
+                                  Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)
+                                ),
+                              });
+                              setOpenMenuId(sale.id);
+                            }}
+                          >
+                            ⋮
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        <section className="sold-form-card sold-entry-panel" aria-labelledby="sold-form-title">
+          <header className="sold-form-header">
+            <div>
+              <h2 id="sold-form-title">{editingSaleId ? "Edit Sold Items" : "Add Sold Items"}</h2>
+              <p>Select the sold items and quantities.</p>
+            </div>
+          </header>
+          <form onSubmit={handleSubmit}>
+            <div className="sold-form-fields">
+              <label>
+                Sale Date
+                <input
+                  type="date"
+                  value={soldDate}
+                  onChange={(event) => setSoldDate(event.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Sold To <span>(optional)</span>
+                <input
+                  type="text"
+                  value={soldTo}
+                  onChange={(event) => setSoldTo(event.target.value)}
+                  placeholder="Customer name"
+                />
+              </label>
+            </div>
+
+            <section className="range-package-builder">
+              <div className="range-package-heading">
+                <h3>Range Package</h3>
+                <p>Select a category and the items sold.</p>
+              </div>
+              <div className="range-package-category-options">
+                {Object.keys(RANGE_PACKAGE_CATALOG).map((category) => (
+                  <label
+                    className={`range-package-category-option ${
+                      categories.includes(category) ? "selected" : ""
+                    }`}
+                    key={category}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={categories.includes(category)}
+                      onChange={() => toggleCategory(category)}
+                    />
+                    <span>{RANGE_PACKAGE_CATEGORY_LABELS[category]}</span>
+                  </label>
+                ))}
+              </div>
+              {categories.map((category) => (
+                <div className="range-package-category-content" key={category}>
+                  <h4>{RANGE_PACKAGE_CATEGORY_LABELS[category]}</h4>
+                  {category === "Others" ? (
+                    <div className="range-package-other-fields">
+                      <label>
+                        Item details
+                        <input
+                          type="text"
+                          value={otherItem.details}
+                          onChange={(event) =>
+                            setOtherItem((current) => ({
+                              ...current,
+                              details: event.target.value,
+                            }))
+                          }
+                          placeholder="Enter item details"
+                        />
+                      </label>
+                      <label>
+                        Price
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={otherItem.price}
+                          onChange={(event) =>
+                            setOtherItem((current) => ({
+                              ...current,
+                              price: event.target.value,
+                            }))
+                          }
+                          placeholder="Enter price"
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <ul>
+                      {rangePackageCatalog[category].map((item) => (
+                        <li key={item.name}>
+                          <label className="range-package-item-option">
+                            <input
+                              type="checkbox"
+                              checked={selectedItems[category]?.includes(item.name) || false}
+                              onChange={() => toggleItem(category, item.name)}
+                            />
+                            <span>{item.name}</span>
+                          </label>
+                          <strong>
+                            {item.pricing === "corkage-flat"
+                              ? `${formatCurrency(item.unitPrice)} flat rate`
+                              : `${formatCurrency(item.unitPrice)} per ${item.unit}`}
+                          </strong>
+                          {(category === AMMUNITION_CATEGORY ||
+                            RANGE_PACKAGE_QUANTITY_ITEMS[category]?.includes(item.name)) &&
+                            selectedItems[category]?.includes(item.name) && (
+                              <label className="range-package-quantity">
+                                Quantity
+                                <input
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  value={quantities[category]?.[item.name] || ""}
+                                  onChange={(event) => {
+                                    const value = event.target.value;
+                                    setQuantities((current) => ({
+                                      ...current,
+                                      [category]: {
+                                        ...current[category],
+                                        [item.name]: value,
+                                      },
+                                    }));
+                                  }}
+                                />
+                              </label>
+                            )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </section>
+
+            <section className="sold-products-builder">
+              <div className="range-package-heading">
+                <h3>Products</h3>
+                <p>Select products and quantities to add them to this sale.</p>
+              </div>
+              {productLoadError && (
+                <p className="sold-form-error" role="alert">
+                  {productLoadError}
+                </p>
+              )}
+              {productsLoading && (
+                <p className="sold-products-empty" role="status">
+                  Loading products...
+                </p>
+              )}
+              {!productsLoading && !productLoadError && products.length === 0 && (
+                <p className="sold-products-empty">
+                  No products are available. Add products in Product Management first.
+                </p>
+              )}
+              {productLines.map((line, index) => {
+                const selectedProduct = products.find(
+                  (product) => product.id === line.productId
+                );
+                const quantity = Number(line.quantity);
+                const subtotal =
+                  selectedProduct &&
+                  Number.isInteger(quantity) &&
+                  quantity > 0
+                    ? Number(selectedProduct.price) * quantity
+                    : 0;
+                return (
+                  <div className="sold-product-row" key={`product-line-${index}`}>
+                    <label>
+                      Product
+                      <select
+                        value={line.productId}
+                        onChange={(event) =>
+                          updateProductLine(index, "productId", event.target.value)
+                        }
+                        disabled={productsLoading || Boolean(productLoadError)}
+                      >
+                        <option value="">Select a product</option>
+                        {products.map((product) => {
+                          const selectedElsewhere = productLines.some(
+                            (otherLine, otherIndex) =>
+                              otherIndex !== index &&
+                              otherLine.productId === product.id
+                          );
+                          const available = getAvailableProductStock(product.id);
+                          return (
+                            <option
+                              key={product.id}
+                              value={product.id}
+                              disabled={selectedElsewhere || available < 1}
+                            >
+                              {product.productName} · {formatCurrency(Number(product.price) || 0)} · Stock {available}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
+                    <label>
+                      Quantity
+                      <input
+                        type="number"
+                        min="1"
+                        max={
+                          selectedProduct
+                            ? getAvailableProductStock(selectedProduct.id)
+                            : undefined
+                        }
+                        step="1"
+                        value={line.quantity}
+                        onChange={(event) =>
+                          updateProductLine(index, "quantity", event.target.value)
+                        }
+                        disabled={!selectedProduct}
+                      />
+                    </label>
+                    <div className="sold-product-subtotal">
+                      <span>Subtotal</span>
+                      <strong>{formatCurrency(subtotal)}</strong>
+                    </div>
+                    <button
+                      className="sold-product-remove"
+                      type="button"
+                      onClick={() => removeProductLine(index)}
+                      aria-label={`Remove product row ${index + 1}`}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                );
+              })}
+              <button
+                className="sold-product-add"
+                type="button"
+                onClick={addProductLine}
+                disabled={
+                  productsLoading ||
+                  Boolean(productLoadError) ||
+                  products.length === 0
+                }
+              >
+                + Add Product
+              </button>
+            </section>
+
+            {error && <p className="sold-form-error" role="alert">{error}</p>}
+            <div className="sold-total">
+              <span>Sale total</span>
+              <strong>{formatCurrency(totalAmount)}</strong>
+            </div>
+            <div className="sold-form-actions">
+              {editingSaleId && (
+                <button
+                  className="sold-cancel-button"
+                  type="button"
+                  onClick={resetForm}
+                  disabled={saving}
+                >
+                  Cancel Edit
+                </button>
+              )}
+              <button className="sold-save-button" type="submit" disabled={saving}>
+                {saving ? "Saving…" : editingSaleId ? "Save Changes" : "Save Sold Items"}
+              </button>
+            </div>
+          </form>
+        </section>
+      </div>
 
       {selectedSale && menuPosition &&
         createPortal(
@@ -978,289 +1232,6 @@ export default function SoldManagement() {
                 Close
               </button>
             </div>
-          </section>
-        </div>
-      )}
-
-      {showForm && (
-        <div className="sold-overlay">
-          <section
-            className="sold-form-card"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="sold-form-title"
-          >
-            <header className="sold-form-header">
-              <div>
-                <h2 id="sold-form-title">{editingSaleId ? "Edit Sold Items" : "Add Sold Items"}</h2>
-                <p>Select the sold items and quantities.</p>
-              </div>
-              <button
-                className="sold-close-button"
-                type="button"
-                onClick={resetForm}
-                aria-label="Close form"
-                disabled={saving}
-              >
-                ×
-              </button>
-            </header>
-            <form onSubmit={handleSubmit}>
-              <div className="sold-form-fields">
-                <label>
-                  Sale Date
-                  <input
-                    type="date"
-                    value={soldDate}
-                    onChange={(event) => setSoldDate(event.target.value)}
-                    required
-                  />
-                </label>
-                <label>
-                  Sold To <span>(optional)</span>
-                  <input
-                    type="text"
-                    value={soldTo}
-                    onChange={(event) => setSoldTo(event.target.value)}
-                    placeholder="Customer name"
-                  />
-                </label>
-              </div>
-
-              <section className="range-package-builder">
-                <div className="range-package-heading">
-                  <h3>Range Package</h3>
-                  <p>Select a category and the items sold.</p>
-                </div>
-                <div className="range-package-category-options">
-                  {Object.keys(RANGE_PACKAGE_CATALOG).map((category) => (
-                    <label
-                      className={`range-package-category-option ${
-                        categories.includes(category) ? "selected" : ""
-                      }`}
-                      key={category}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={categories.includes(category)}
-                        onChange={() => toggleCategory(category)}
-                      />
-                      <span>{RANGE_PACKAGE_CATEGORY_LABELS[category]}</span>
-                    </label>
-                  ))}
-                </div>
-                {categories.map((category) => (
-                  <div className="range-package-category-content" key={category}>
-                    <h4>{RANGE_PACKAGE_CATEGORY_LABELS[category]}</h4>
-                    {category === "Others" ? (
-                      <div className="range-package-other-fields">
-                        <label>
-                          Item details
-                          <input
-                            type="text"
-                            value={otherItem.details}
-                            onChange={(event) =>
-                              setOtherItem((current) => ({
-                                ...current,
-                                details: event.target.value,
-                              }))
-                            }
-                            placeholder="Enter item details"
-                          />
-                        </label>
-                        <label>
-                          Price
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={otherItem.price}
-                            onChange={(event) =>
-                              setOtherItem((current) => ({
-                                ...current,
-                                price: event.target.value,
-                              }))
-                            }
-                            placeholder="Enter price"
-                          />
-                        </label>
-                      </div>
-                    ) : (
-                      <ul>
-                        {rangePackageCatalog[category].map((item) => (
-                          <li key={item.name}>
-                            <label className="range-package-item-option">
-                              <input
-                                type="checkbox"
-                                checked={selectedItems[category]?.includes(item.name) || false}
-                                onChange={() => toggleItem(category, item.name)}
-                              />
-                              <span>{item.name}</span>
-                            </label>
-                            <strong>
-                              {item.pricing === "corkage-flat"
-                                ? `${formatCurrency(item.unitPrice)} flat rate`
-                                : `${formatCurrency(item.unitPrice)} per ${item.unit}`}
-                            </strong>
-                            {(category === AMMUNITION_CATEGORY ||
-                              RANGE_PACKAGE_QUANTITY_ITEMS[category]?.includes(item.name)) &&
-                              selectedItems[category]?.includes(item.name) && (
-                                <label className="range-package-quantity">
-                                  Quantity
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                    value={quantities[category]?.[item.name] || ""}
-                                    onChange={(event) => {
-                                      const value = event.target.value;
-                                      setQuantities((current) => ({
-                                        ...current,
-                                        [category]: {
-                                          ...current[category],
-                                          [item.name]: value,
-                                        },
-                                      }));
-                                    }}
-                                  />
-                                </label>
-                              )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ))}
-              </section>
-
-              <section className="sold-products-builder">
-                <div className="range-package-heading">
-                  <h3>Products</h3>
-                  <p>Select products and quantities to add them to this sale.</p>
-                </div>
-                {productLoadError && (
-                  <p className="sold-form-error" role="alert">
-                    {productLoadError}
-                  </p>
-                )}
-                {productsLoading && (
-                  <p className="sold-products-empty" role="status">
-                    Loading products...
-                  </p>
-                )}
-                {!productsLoading && !productLoadError && products.length === 0 && (
-                  <p className="sold-products-empty">
-                    No products are available. Add products in Product Management first.
-                  </p>
-                )}
-                {productLines.map((line, index) => {
-                  const selectedProduct = products.find(
-                    (product) => product.id === line.productId
-                  );
-                  const quantity = Number(line.quantity);
-                  const subtotal =
-                    selectedProduct &&
-                    Number.isInteger(quantity) &&
-                    quantity > 0
-                      ? Number(selectedProduct.price) * quantity
-                      : 0;
-                  return (
-                    <div className="sold-product-row" key={`product-line-${index}`}>
-                      <label>
-                        Product
-                        <select
-                          value={line.productId}
-                          onChange={(event) =>
-                            updateProductLine(index, "productId", event.target.value)
-                          }
-                          disabled={productsLoading || Boolean(productLoadError)}
-                        >
-                          <option value="">Select a product</option>
-                          {products.map((product) => {
-                            const selectedElsewhere = productLines.some(
-                              (otherLine, otherIndex) =>
-                                otherIndex !== index &&
-                                otherLine.productId === product.id
-                            );
-                            const available = getAvailableProductStock(product.id);
-                            return (
-                              <option
-                                key={product.id}
-                                value={product.id}
-                                disabled={selectedElsewhere || available < 1}
-                              >
-                                {product.productName} · {formatCurrency(Number(product.price) || 0)} · Stock {available}
-                              </option>
-                            );
-                          })}
-                        </select>
-                      </label>
-                      <label>
-                        Quantity
-                        <input
-                          type="number"
-                          min="1"
-                          max={
-                            selectedProduct
-                              ? getAvailableProductStock(selectedProduct.id)
-                              : undefined
-                          }
-                          step="1"
-                          value={line.quantity}
-                          onChange={(event) =>
-                            updateProductLine(index, "quantity", event.target.value)
-                          }
-                          disabled={!selectedProduct}
-                        />
-                      </label>
-                      <div className="sold-product-subtotal">
-                        <span>Subtotal</span>
-                        <strong>{formatCurrency(subtotal)}</strong>
-                      </div>
-                      <button
-                        className="sold-product-remove"
-                        type="button"
-                        onClick={() => removeProductLine(index)}
-                        aria-label={`Remove product row ${index + 1}`}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  );
-                })}
-                <button
-                  className="sold-product-add"
-                  type="button"
-                  onClick={addProductLine}
-                  disabled={
-                    productsLoading ||
-                    Boolean(productLoadError) ||
-                    products.length === 0
-                  }
-                >
-                  + Add Product
-                </button>
-              </section>
-
-              {error && <p className="sold-form-error" role="alert">{error}</p>}
-              <div className="sold-total">
-                <span>Sale total</span>
-                <strong>{formatCurrency(totalAmount)}</strong>
-              </div>
-              <div className="sold-form-actions">
-                <button
-                  className="sold-cancel-button"
-                  type="button"
-                  onClick={resetForm}
-                  disabled={saving}
-                >
-                  Cancel
-                </button>
-                <button className="sold-save-button" type="submit" disabled={saving}>
-                  {saving ? "Saving…" : editingSaleId ? "Save Changes" : "Save Sold Items"}
-                </button>
-              </div>
-            </form>
           </section>
         </div>
       )}
