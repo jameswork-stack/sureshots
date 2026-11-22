@@ -89,6 +89,7 @@ export default function SoldManagement() {
   const [menuPosition, setMenuPosition] = useState(null);
   const [soldDate, setSoldDate] = useState(getTodayDate);
   const [soldTo, setSoldTo] = useState("");
+  const [discountPercentage, setDiscountPercentage] = useState("");
   const [categories, setCategories] = useState([]);
   const [selectedItems, setSelectedItems] = useState({});
   const [quantities, setQuantities] = useState({});
@@ -313,6 +314,12 @@ export default function SoldManagement() {
       : total;
   }, 0);
   const totalAmount = rangePackageTotal + productSalesTotal;
+  const discountRate = discountPercentage === "" ? 0 : Number(discountPercentage);
+  const discountAmount =
+    Number.isInteger(discountRate) && discountRate >= 1 && discountRate <= 100
+      ? totalAmount * (discountRate / 100)
+      : 0;
+  const discountedTotal = totalAmount - discountAmount;
   const editingSale = soldItems.find((sale) => sale.id === editingSaleId);
   const previousProductQuantities = getProductQuantities(editingSale);
   const getAvailableProductStock = (productId) => {
@@ -328,6 +335,7 @@ export default function SoldManagement() {
     setEditingSaleId(null);
     setSoldDate(getTodayDate());
     setSoldTo("");
+    setDiscountPercentage("");
     setCategories([]);
     setSelectedItems({});
     setQuantities({});
@@ -384,6 +392,9 @@ export default function SoldManagement() {
     setEditingSaleId(sale.id);
     setSoldDate(sale.soldDate || getTodayDate());
     setSoldTo(sale.soldTo || "");
+    setDiscountPercentage(
+      sale.discountPercentage ? String(sale.discountPercentage) : ""
+    );
     setCategories(existingCategories);
     setSelectedItems(nextSelectedItems);
     setQuantities(nextQuantities);
@@ -406,8 +417,11 @@ export default function SoldManagement() {
     event.preventDefault();
     setError("");
 
-    if (!soldDate) {
-      setError("Select the sale date.");
+    if (
+      discountPercentage !== "" &&
+      (!Number.isInteger(discountRate) || discountRate < 1 || discountRate > 100)
+    ) {
+      setError("Discount must be a whole number from 1% to 100%.");
       return;
     }
     if (
@@ -493,15 +507,21 @@ export default function SoldManagement() {
 
     try {
       setSaving(true);
+      const subtotalAmount =
+        rangePackageTotal + getProductItemsTotal(productItems);
+      const discountAmount = subtotalAmount * (discountRate / 100);
       const saleData = {
         packageCategory: packageContents.length ? "Range Package" : "",
         packageCategories: packageContents.map(({ category }) => category),
         packageContents,
         packageItems: [],
         productItems,
-        soldDate,
+        soldDate: editingSaleId ? soldDate : getTodayDate(),
         soldTo: soldTo.trim(),
-        totalAmount: rangePackageTotal + getProductItemsTotal(productItems),
+        subtotalAmount,
+        discountPercentage: discountRate,
+        discountAmount,
+        totalAmount: subtotalAmount - discountAmount,
         updatedAt: serverTimestamp(),
       };
       const saleRef = editingSaleId
@@ -593,11 +613,15 @@ export default function SoldManagement() {
             };
           }
         });
+        const nextSubtotalAmount =
+          rangePackageTotal + getProductItemsTotal(pricedProductItems);
+        const nextDiscountAmount = nextSubtotalAmount * (discountRate / 100);
         const nextSaleData = {
           ...saleData,
           productItems: pricedProductItems,
-          totalAmount:
-            rangePackageTotal + getProductItemsTotal(pricedProductItems),
+          subtotalAmount: nextSubtotalAmount,
+          discountAmount: nextDiscountAmount,
+          totalAmount: nextSubtotalAmount - nextDiscountAmount,
         };
         const inventoryStockOut = await adjustAmmunitionInventory(
           transaction,
@@ -744,6 +768,23 @@ export default function SoldManagement() {
       : getRangePackageItemsTotal(getSaleContents(sale)) +
         getProductItemsTotal(sale.productItems);
 
+  const getSaleDiscountPercentage = (sale) => {
+    const percentage = Number(sale.discountPercentage);
+    return Number.isInteger(percentage) && percentage >= 1 && percentage <= 100
+      ? percentage
+      : 0;
+  };
+
+  const getSaleSubtotal = (sale) =>
+    sale.subtotalAmount != null && Number.isFinite(Number(sale.subtotalAmount))
+      ? Number(sale.subtotalAmount)
+      : getSaleTotal(sale);
+
+  const getSaleDiscountAmount = (sale) =>
+    sale.discountAmount != null && Number.isFinite(Number(sale.discountAmount))
+      ? Number(sale.discountAmount)
+      : getSaleSubtotal(sale) * (getSaleDiscountPercentage(sale) / 100);
+
   return (
     <div className="sold-management-page">
       <header className="sold-management-header">
@@ -829,20 +870,11 @@ export default function SoldManagement() {
           <header className="sold-form-header">
             <div>
               <h2 id="sold-form-title">{editingSaleId ? "Edit Sold Items" : "Add Sold Items"}</h2>
-              <p>Select the sold items and quantities.</p>
+              <p>New sales use today's date; edits keep the original date.</p>
             </div>
           </header>
           <form onSubmit={handleSubmit}>
             <div className="sold-form-fields">
-              <label>
-                Sale Date
-                <input
-                  type="date"
-                  value={soldDate}
-                  onChange={(event) => setSoldDate(event.target.value)}
-                  required
-                />
-              </label>
               <label>
                 Sold To <span>(optional)</span>
                 <input
@@ -850,6 +882,18 @@ export default function SoldManagement() {
                   value={soldTo}
                   onChange={(event) => setSoldTo(event.target.value)}
                   placeholder="Customer name"
+                />
+              </label>
+              <label>
+                Discount (%) <span>(optional, 1–100)</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  step="1"
+                  value={discountPercentage}
+                  onChange={(event) => setDiscountPercentage(event.target.value)}
+                  placeholder="No discount"
                 />
               </label>
             </div>
@@ -1070,9 +1114,19 @@ export default function SoldManagement() {
             </section>
 
             {error && <p className="sold-form-error" role="alert">{error}</p>}
-            <div className="sold-total">
-              <span>Sale total</span>
-              <strong>{formatCurrency(totalAmount)}</strong>
+            <div className="sold-price-summary">
+              <div>
+                <span>Subtotal</span>
+                <strong>{formatCurrency(totalAmount)}</strong>
+              </div>
+              <div>
+                <span>Discount ({discountRate || 0}%)</span>
+                <strong>−{formatCurrency(discountAmount)}</strong>
+              </div>
+              <div className="sold-total">
+                <span>Total due</span>
+                <strong>{formatCurrency(discountedTotal)}</strong>
+              </div>
             </div>
             <div className="sold-form-actions">
               {editingSaleId && (
@@ -1165,7 +1219,14 @@ export default function SoldManagement() {
             <dl className="sold-detail-grid">
               <div><dt>Sale Date</dt><dd>{formatDisplayDate(viewingSale.soldDate)}</dd></div>
               <div><dt>Sold To</dt><dd>{viewingSale.soldTo || "Walk-in sale"}</dd></div>
-              <div><dt>Total</dt><dd>{formatCurrency(getSaleTotal(viewingSale))}</dd></div>
+              <div><dt>Subtotal</dt><dd>{formatCurrency(getSaleSubtotal(viewingSale))}</dd></div>
+              <div>
+                <dt>Discount</dt>
+                <dd>
+                  {getSaleDiscountPercentage(viewingSale)}% (
+                  {formatCurrency(getSaleDiscountAmount(viewingSale))})
+                </dd>
+              </div>
             </dl>
             {getSaleContents(viewingSale).length > 0 && (
               <>
@@ -1245,6 +1306,14 @@ export default function SoldManagement() {
           <dl className="sold-print-details">
             <div><dt>Sale Date</dt><dd>{formatDisplayDate(printingSale.soldDate)}</dd></div>
             <div><dt>Sold To</dt><dd>{printingSale.soldTo || "Walk-in sale"}</dd></div>
+            <div><dt>Subtotal</dt><dd>{formatCurrency(getSaleSubtotal(printingSale))}</dd></div>
+            <div>
+              <dt>Discount</dt>
+              <dd>
+                {getSaleDiscountPercentage(printingSale)}% (
+                {formatCurrency(getSaleDiscountAmount(printingSale))})
+              </dd>
+            </div>
           </dl>
           {getSaleContents(printingSale).map(({ category, items }) => (
             <section key={category}>
