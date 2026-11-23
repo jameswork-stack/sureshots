@@ -92,7 +92,7 @@
 
 .sold-table {
   width: 100%;
-  min-width: 560px;
+  min-width: 650px;
   border-collapse: collapse;
   text-align: left;
 }
@@ -215,7 +215,8 @@
   font-weight: 400;
 }
 
-.sold-form-fields input {
+.sold-form-fields input,
+.sold-form-fields select {
   box-sizing: border-box;
   width: 100%;
   min-height: 40px;

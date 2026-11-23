@@ -89,6 +89,7 @@ export default function SoldManagement() {
   const [menuPosition, setMenuPosition] = useState(null);
   const [soldDate, setSoldDate] = useState(getTodayDate);
   const [soldTo, setSoldTo] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("");
   const [discountPercentage, setDiscountPercentage] = useState("");
   const [categories, setCategories] = useState([]);
   const [selectedItems, setSelectedItems] = useState({});
@@ -127,7 +128,14 @@ export default function SoldManagement() {
       records.sort((first, second) => {
         const firstDate = first.soldDate || "";
         const secondDate = second.soldDate || "";
-        return secondDate.localeCompare(firstDate);
+        const firstCreatedAt =
+          first.createdAt?.toMillis?.() ?? first.updatedAt?.toMillis?.() ?? 0;
+        const secondCreatedAt =
+          second.createdAt?.toMillis?.() ?? second.updatedAt?.toMillis?.() ?? 0;
+        return (
+          secondDate.localeCompare(firstDate) ||
+          secondCreatedAt - firstCreatedAt
+        );
       });
       setSoldItems(records);
       setError("");
@@ -335,6 +343,7 @@ export default function SoldManagement() {
     setEditingSaleId(null);
     setSoldDate(getTodayDate());
     setSoldTo("");
+    setPaymentMethod("");
     setDiscountPercentage("");
     setCategories([]);
     setSelectedItems({});
@@ -392,6 +401,7 @@ export default function SoldManagement() {
     setEditingSaleId(sale.id);
     setSoldDate(sale.soldDate || getTodayDate());
     setSoldTo(sale.soldTo || "");
+    setPaymentMethod(sale.paymentMethod || "");
     setDiscountPercentage(
       sale.discountPercentage ? String(sale.discountPercentage) : ""
     );
@@ -417,6 +427,10 @@ export default function SoldManagement() {
     event.preventDefault();
     setError("");
 
+    if (!paymentMethod) {
+      setError("Select a payment method.");
+      return;
+    }
     if (
       discountPercentage !== "" &&
       (!Number.isFinite(discountRate) || discountRate < 1 || discountRate > 100)
@@ -518,6 +532,7 @@ export default function SoldManagement() {
         productItems,
         soldDate: editingSaleId ? soldDate : getTodayDate(),
         soldTo: soldTo.trim(),
+        paymentMethod,
         subtotalAmount,
         discountPercentage: discountRate,
         discountAmount,
@@ -811,6 +826,7 @@ export default function SoldManagement() {
                   <tr>
                     <th>Date</th>
                     <th>Sold To</th>
+                    <th>Payment Method</th>
                     <th>Total</th>
                     <th>Action</th>
                   </tr>
@@ -821,6 +837,7 @@ export default function SoldManagement() {
                       <tr key={sale.id}>
                         <td>{formatDisplayDate(sale.soldDate)}</td>
                         <td>{sale.soldTo || "Walk-in sale"}</td>
+                        <td>{sale.paymentMethod || "—"}</td>
                         <td>{formatCurrency(getSaleTotal(sale))}</td>
                         <td className="booking-action-cell">
                           <button
@@ -883,6 +900,19 @@ export default function SoldManagement() {
                   onChange={(event) => setSoldTo(event.target.value)}
                   placeholder="Customer name"
                 />
+              </label>
+              <label>
+                Payment Method
+                <select
+                  value={paymentMethod}
+                  onChange={(event) => setPaymentMethod(event.target.value)}
+                  required
+                >
+                  <option value="">Select a payment method</option>
+                  <option value="Cash">Cash</option>
+                  <option value="GCash">GCash</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                </select>
               </label>
               <label>
                 Discount (%) <span>(optional, 1–100; decimals allowed)</span>
@@ -1219,6 +1249,7 @@ export default function SoldManagement() {
             <dl className="sold-detail-grid">
               <div><dt>Sale Date</dt><dd>{formatDisplayDate(viewingSale.soldDate)}</dd></div>
               <div><dt>Sold To</dt><dd>{viewingSale.soldTo || "Walk-in sale"}</dd></div>
+              <div><dt>Payment Method</dt><dd>{viewingSale.paymentMethod || "—"}</dd></div>
               <div><dt>Subtotal</dt><dd>{formatCurrency(getSaleSubtotal(viewingSale))}</dd></div>
               <div>
                 <dt>Discount</dt>
@@ -1306,6 +1337,7 @@ export default function SoldManagement() {
           <dl className="sold-print-details">
             <div><dt>Sale Date</dt><dd>{formatDisplayDate(printingSale.soldDate)}</dd></div>
             <div><dt>Sold To</dt><dd>{printingSale.soldTo || "Walk-in sale"}</dd></div>
+            <div><dt>Payment Method</dt><dd>{printingSale.paymentMethod || "—"}</dd></div>
             <div><dt>Subtotal</dt><dd>{formatCurrency(getSaleSubtotal(printingSale))}</dd></div>
             <div>
               <dt>Discount</dt>
