@@ -316,7 +316,7 @@ export default function SoldManagement() {
   const totalAmount = rangePackageTotal + productSalesTotal;
   const discountRate = discountPercentage === "" ? 0 : Number(discountPercentage);
   const discountAmount =
-    Number.isInteger(discountRate) && discountRate >= 1 && discountRate <= 100
+    Number.isFinite(discountRate) && discountRate >= 1 && discountRate <= 100
       ? totalAmount * (discountRate / 100)
       : 0;
   const discountedTotal = totalAmount - discountAmount;
@@ -419,9 +419,9 @@ export default function SoldManagement() {
 
     if (
       discountPercentage !== "" &&
-      (!Number.isInteger(discountRate) || discountRate < 1 || discountRate > 100)
+      (!Number.isFinite(discountRate) || discountRate < 1 || discountRate > 100)
     ) {
-      setError("Discount must be a whole number from 1% to 100%.");
+      setError("Discount must be a number from 1% to 100%.");
       return;
     }
     if (
@@ -885,12 +885,12 @@ export default function SoldManagement() {
                 />
               </label>
               <label>
-                Discount (%) <span>(optional, 1–100)</span>
+                Discount (%) <span>(optional, 1–100; decimals allowed)</span>
                 <input
                   type="number"
                   min="1"
                   max="100"
-                  step="1"
+                  step="any"
                   value={discountPercentage}
                   onChange={(event) => setDiscountPercentage(event.target.value)}
                   placeholder="No discount"
