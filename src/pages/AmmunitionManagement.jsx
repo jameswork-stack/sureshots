@@ -17,6 +17,7 @@ import {
   syncLegacyAmmunitionNames,
   updateAmmunitionItem,
 } from "../utils/ammunitionInventory";
+import { getLocalDateKey } from "../utils/date";
 import { RANGE_PACKAGE_CATALOG } from "../utils/rangePackage";
 import "../styles/ammunitionManagement.css";
 
@@ -38,6 +39,9 @@ const formatCurrency = (amount) =>
 
 export default function AmmunitionManagement() {
   const [stockLevels, setStockLevels] = useState({});
+  const [dailyStockOutByItem, setDailyStockOutByItem] = useState({});
+  const [todayDate, setTodayDate] = useState(() => getLocalDateKey(new Date()));
+  const [movementError, setMovementError] = useState("");
   const [builtInAmmunitionTypes, setBuiltInAmmunitionTypes] =
     useState(ammunitionTypes);
   const [customAmmunitionTypes, setCustomAmmunitionTypes] = useState([]);
@@ -71,6 +75,13 @@ export default function AmmunitionManagement() {
   );
   const startingStockUnit =
     newAmmunitionItem.unit === "piece" ? "pieces" : "rounds";
+  const todayMovements = Object.values(dailyStockOutByItem).filter(
+    (movement) => movement.date === todayDate && movement.quantity > 0
+  );
+  const dailyStockOutTotal = todayMovements.reduce(
+    (total, movement) => total + movement.quantity,
+    0
+  );
 
   useEffect(() => {
     let isCurrent = true;
@@ -96,6 +107,7 @@ export default function AmmunitionManagement() {
       collection(db, AMMUNITION_INVENTORY_COLLECTION),
       (snapshot) => {
         const records = {};
+        const dailyMovements = {};
         const customItems = [];
         try {
           snapshot.docs.forEach((inventoryDoc) => {
@@ -107,6 +119,25 @@ export default function AmmunitionManagement() {
               );
             }
             records[inventoryDoc.id] = quantity;
+            if (
+              data.dailyStockOutDate != null ||
+              data.dailyStockOutQuantity != null
+            ) {
+              if (
+                typeof data.dailyStockOutDate !== "string" ||
+                !/^\d{4}-\d{2}-\d{2}$/.test(data.dailyStockOutDate) ||
+                !Number.isInteger(data.dailyStockOutQuantity) ||
+                data.dailyStockOutQuantity < 0
+              ) {
+                throw new Error(
+                  `Invalid daily stock-out total for ${data.name || inventoryDoc.id}.`
+                );
+              }
+              dailyMovements[inventoryDoc.id] = {
+                date: data.dailyStockOutDate,
+                quantity: data.dailyStockOutQuantity,
+              };
+            }
             if (data.custom === true) {
               if (data.active === false) return;
               const unitPrice = Number(data.unitPrice);
@@ -132,11 +163,16 @@ export default function AmmunitionManagement() {
             first.name.localeCompare(second.name)
           );
           setStockLevels(records);
+          setDailyStockOutByItem(dailyMovements);
           setCustomAmmunitionTypes(customItems);
           setLoadError("");
+          setMovementError("");
         } catch (loadError) {
           console.error("Error reading ammunition inventory:", loadError);
           setLoadError("Unable to read ammunition stock. Please try again.");
+          setMovementError(
+            "Unable to read today's ammunition stock-out total."
+          );
         } finally {
           setLoading(false);
         }
@@ -144,6 +180,9 @@ export default function AmmunitionManagement() {
       (loadError) => {
         console.error("Error loading ammunition inventory:", loadError);
         setLoadError("Unable to load ammunition stock. Please try again.");
+        setMovementError(
+          "Unable to load today's ammunition stock-out total."
+        );
         setLoading(false);
       }
     );
@@ -168,6 +207,21 @@ export default function AmmunitionManagement() {
       window.removeEventListener("resize", closeMenu);
     };
   }, [openMenuId]);
+
+  useEffect(() => {
+    const now = new Date();
+    const nextMidnight = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + 1
+    );
+    const timeout = window.setTimeout(
+      () => setTodayDate(getLocalDateKey(new Date())),
+      nextMidnight.getTime() - now.getTime() + 50
+    );
+
+    return () => window.clearTimeout(timeout);
+  }, [todayDate]);
 
   const toggleMenu = (item, event) => {
     const inventoryId = getAmmunitionInventoryId(
@@ -479,6 +533,42 @@ export default function AmmunitionManagement() {
           {success}
         </p>
       )}
+
+      <section
+        className="ammunition-daily-summary"
+        aria-label="Today's ammunition stock-out"
+      >
+        <div>
+          <p className="ammunition-daily-summary-eyebrow">
+            {new Date(`${todayDate}T00:00:00`).toLocaleDateString("en-PH", {
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </p>
+          <h2>Total ammunition units out</h2>
+          <p className="ammunition-daily-summary-caption">
+            Today's total resets automatically tomorrow.
+          </p>
+        </div>
+        <div className="ammunition-daily-summary-total" aria-live="polite">
+          <strong>
+            {loading
+              ? "..."
+              : movementError
+                ? "—"
+                : dailyStockOutTotal.toLocaleString()}
+          </strong>
+          <span>
+            {movementError ||
+              `${dailyStockOutTotal === 1 ? "unit" : "units"} out | ${
+                todayMovements.length
+              } ammunition ${
+                todayMovements.length === 1 ? "type" : "types"
+              } moved`}
+          </span>
+        </div>
+      </section>
 
       <section className="ammunition-inventory-panel">
         <div className="ammunition-inventory-heading">

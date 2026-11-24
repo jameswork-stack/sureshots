@@ -35,7 +35,7 @@
 
 .add-member-btn {
   border: none;
-  background: #2563eb;
+  background: #ec4899;
   color: white;
   padding: 11px 18px;
   border-radius: 8px;
@@ -46,7 +46,7 @@
 }
 
 .add-member-btn:hover {
-  background: #1d4ed8;
+  background: #ec489ad8;
 }
 
 .attendance-back-btn {

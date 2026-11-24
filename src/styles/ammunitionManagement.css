@@ -44,6 +44,56 @@
   color: #15803d;
 }
 
+.ammunition-daily-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+  border: 1px solid #dbeafe;
+  border-radius: 13px;
+  padding: 18px 22px;
+  background: linear-gradient(115deg, #eff6ff, #fff);
+  box-shadow: 0 5px 18px rgba(15, 23, 42, 0.04);
+}
+
+.ammunition-daily-summary-eyebrow {
+  margin: 0 0 5px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ammunition-daily-summary h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 16px;
+}
+
+.ammunition-daily-summary-caption {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ammunition-daily-summary-total {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+
+.ammunition-daily-summary-total strong {
+  color: #1d4ed8;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.ammunition-daily-summary-total span {
+  color: #64748b;
+  font-size: 11px;
+  text-align: right;
+}
+
 .ammunition-inventory-panel {
   overflow: hidden;
   border: 1px solid #e2e8f0;
@@ -400,6 +450,14 @@
 @media (max-width: 600px) {
   .ammunition-management-header h1 {
     font-size: 25px;
+  }
+
+  .ammunition-daily-summary {
+    padding: 16px;
+  }
+
+  .ammunition-daily-summary-total strong {
+    font-size: 26px;
   }
 
   .ammunition-inventory-heading {

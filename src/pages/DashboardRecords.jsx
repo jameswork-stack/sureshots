@@ -5,6 +5,7 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { formatDisplayDate } from "../utils/date";
 import "../styles/dashboardRecords.css";
+import { createPortal } from "react-dom";
 
 const METRICS = {
   "firearm-sales": {
@@ -21,11 +22,6 @@ const METRICS = {
     title: "Total Range & Product Sales",
     description: "Range package items and products sold through Sold Management.",
     type: "range-sold-sales",
-  },
-  "membership-sales": {
-    title: "Total Membership Sales",
-    description: "Membership records and prices included in this total.",
-    type: "membership-sales",
   },
   "range-fee-availed": {
     title: "Total Range Fee Availed",
@@ -50,12 +46,39 @@ const METRICS = {
 };
 
 const getDateFromValue = (value) => {
-  if (value?.toDate) return value.toDate();
-  if (typeof value === "string" && value) {
-    const parsed = new Date(`${value.slice(0, 10)}T00:00:00`);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  if (!value) return null;
+
+  // Firestore Timestamp
+  if (typeof value.toDate === "function") {
+    return value.toDate();
   }
+
+  // JavaScript Date
+  if (value instanceof Date) {
+    return value;
+  }
+
+  // Date string with or without time
+  if (typeof value === "string") {
+    const date = new Date(
+      /^\d{4}-\d{2}-\d{2}$/.test(value)
+        ? `${value}T00:00:00`
+        : value
+    );
+
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
   return null;
+};
+
+const getRecordSortTime = (record, date) => {
+  const timestamp =
+    getDateFromValue(record.completedAt) ||
+    getDateFromValue(record.createdAt) ||
+    date;
+
+  return timestamp?.getTime() ?? 0;
 };
 
 const getBookingDate = (booking) =>
@@ -166,6 +189,7 @@ const getRangeSoldRows = (rangeSold, dateFrom, dateTo) =>
       id: sale.id,
       date: formatDate(date),
       sortDate: date?.getTime() ?? 0,
+      sortTime: getRecordSortTime(sale, date),
       record: sale.soldTo || "Walk-in sale",
       details: itemDetails || "Range Package sale",
       status: "Sold",
@@ -179,14 +203,33 @@ export default function DashboardRecords() {
   const dateFrom = searchParams.get("from") || "";
   const dateTo = searchParams.get("to") || "";
   const [bookings, setBookings] = useState([]);
-  const [members, setMembers] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [rangeSold, setRangeSold] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [today] = useState(() => formatDateKey(new Date()));
+  const [openMenu, setOpenMenu] = useState(null);
+  const [menuPosition, setMenuPosition] = useState(null);
+  const [selectedRecord, setSelectedRecord] = useState(null);
 
   const definition = METRICS[metric];
+
+  useEffect(() => {
+  if (!openMenu) return;
+
+  const handleClose = () => {
+    setOpenMenu(null);
+    setMenuPosition(null);
+  };
+
+  window.addEventListener("scroll", handleClose, true);
+  window.addEventListener("resize", handleClose);
+
+  return () => {
+    window.removeEventListener("scroll", handleClose, true);
+    window.removeEventListener("resize", handleClose);
+  };
+}, [openMenu]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -212,7 +255,6 @@ export default function DashboardRecords() {
               ...record.data(),
             }))
           );
-          setMembers([]);
           setAttendance([]);
           return;
         }
@@ -220,8 +262,6 @@ export default function DashboardRecords() {
         const collectionName =
           definition?.type === "range-sold-sales"
             ? "rangeSold"
-            : definition?.type === "membership-sales"
-            ? "sureshotsMembers"
             : definition?.type === "attendance"
               ? "attendance"
               : "bookings";
@@ -233,7 +273,6 @@ export default function DashboardRecords() {
         if (!isCurrent) return;
 
         setBookings(collectionName === "bookings" ? records : []);
-        setMembers(collectionName === "sureshotsMembers" ? records : []);
         setAttendance(collectionName === "attendance" ? records : []);
         setRangeSold(collectionName === "rangeSold" ? records : []);
       } catch (loadError) {
@@ -254,29 +293,6 @@ export default function DashboardRecords() {
   const rows = useMemo(() => {
     if (!definition) return [];
 
-    if (definition.type === "membership-sales") {
-      return members.flatMap((member) => {
-        const date = getDateFromValue(member.createdAt);
-        const amount = Number(member.membershipPrice);
-        if (
-          (dateFrom || dateTo) && !isInSelectedRange(date, dateFrom, dateTo)
-        ) {
-          return [];
-        }
-        if (!Number.isFinite(amount)) return [];
-        return [{
-          id: member.id,
-          date: formatDate(date),
-          sortDate: date?.getTime() ?? 0,
-          record: member.memberName || "Unnamed member",
-          details: member.memberNumber
-            ? `Member No. ${member.memberNumber} · ${member.membershipType || "Membership"}`
-            : member.membershipType || "Membership",
-          amount,
-        }];
-      });
-    }
-
     if (definition.type === "attendance") {
       return attendance.flatMap((record) => {
         const date = getDateFromValue(record.date);
@@ -288,6 +304,7 @@ export default function DashboardRecords() {
           id: record.id,
           date: formatDate(date),
           sortDate: date?.getTime() ?? 0,
+          sortTime: getRecordSortTime(record, date),
           record: record.memberName || record.name || "Attendance record",
           details: record.timeIn ? `Time in ${record.timeIn}` : "-",
           status: record.status,
@@ -334,6 +351,7 @@ export default function DashboardRecords() {
           id: booking.id,
           date: formatDate(date),
           sortDate: date?.getTime() ?? 0,
+          sortTime: getRecordSortTime(record, date),
           record: booking.bookName || "Booking",
           details: booking.memberName || booking.customerName || "-",
           status,
@@ -415,16 +433,59 @@ export default function DashboardRecords() {
     dateFrom,
     dateTo,
     definition,
-    members,
     metric,
     rangeSold,
     today,
   ]);
 
-  const sortedRows = useMemo(
-    () => [...rows].sort((first, second) => second.sortDate - first.sortDate),
-    [rows]
-  );
+  const sortedRows = useMemo(() => {
+  return [...rows].sort((a, b) => {
+    const dayA = a.sortDate
+      ? formatDateKey(new Date(a.sortDate))
+      : "";
+
+    const dayB = b.sortDate
+      ? formatDateKey(new Date(b.sortDate))
+      : "";
+
+    return (
+      dayB.localeCompare(dayA) ||
+      (b.sortTime || 0) - (a.sortTime || 0)
+    );
+  });
+}, [rows]);
+
+  const closeMenu = () => {
+  setOpenMenu(null);
+  setMenuPosition(null);
+};
+
+const handleOpenMenu = (event, row) => {
+  if (openMenu === row) {
+    closeMenu();
+    return;
+  }
+
+  const rect = event.currentTarget.getBoundingClientRect();
+
+  setMenuPosition({
+    top: Math.max(
+      8,
+      rect.bottom + 100 > window.innerHeight
+        ? rect.top - 100
+        : rect.bottom + 5
+    ),
+    left: Math.max(8, rect.right - 160),
+  });
+
+  setOpenMenu(row);
+};
+
+const handleViewInfo = (row) => {
+  setSelectedRecord(row);
+  closeMenu();
+};
+
   const totalAmount = rows.reduce((total, row) => total + (row.amount || 0), 0);
   const totalQuantity = rows.reduce(
     (total, row) => total + (row.quantity || 0),
@@ -499,15 +560,16 @@ export default function DashboardRecords() {
               <thead>
                 <tr>
                   <th>Date</th>
-                  <th>{definition.type === "membership-sales" ? "Member" : "Booking / Record"}</th>
+                  <th>Booking / Record</th>
                   <th>Details</th>
-                  {definition.type !== "membership-sales" && <th>Status</th>}
+                  <th>Status</th>
                   {(definition.type === "range-fee" ||
                     definition.type === "range-sales" ||
                     definition.type === "attendance") && <th>Quantity</th>}
                   {definition.type !== "range-fee" &&
                     definition.type !== "attendance" &&
                     <th>Amount</th>}
+                    <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -516,9 +578,7 @@ export default function DashboardRecords() {
                     <td>{row.date}</td>
                     <td>{row.record}</td>
                     <td>{row.details}</td>
-                    {definition.type !== "membership-sales" && (
-                        <td><span className="dashboard-record-status">{row.status}</span></td>
-                      )}
+                    <td><span className="dashboard-record-status">{row.status}</span></td>
                     {(definition.type === "range-fee" ||
                       definition.type === "range-sales" ||
                       definition.type === "attendance") && (
@@ -528,12 +588,23 @@ export default function DashboardRecords() {
                       definition.type !== "attendance" && (
                         <td>{formatCurrency(row.amount || 0)}</td>
                       )}
+                      <td>
+                        <button
+                          type="button"
+                          className="dashboard-record-action-btn"
+                          aria-label="Record actions"
+                          aria-haspopup="menu"
+                          aria-expanded={openMenu === row}
+                          onClick={(event) => handleOpenMenu(event, row)}
+                        >
+                          ⋮
+                        </button>
+                      </td>
                   </tr>
                 ))}
               </tbody>
               {(definition.type === "range-sales" ||
                 definition.type === "range-sold-sales" ||
-                definition.type === "membership-sales" ||
                 definition.type === "bookings" ||
                 definition.type === "bookings-list") && (
                 <tfoot>
@@ -565,6 +636,94 @@ export default function DashboardRecords() {
           </div>
         )}
       </div>
+      {openMenu && menuPosition &&
+  createPortal(
+    <div
+      className="dashboard-record-action-menu"
+      role="menu"
+      style={{
+        top: menuPosition.top,
+        left: menuPosition.left,
+      }}
+    >
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => handleViewInfo(openMenu)}
+      >
+        View Info
+      </button>
+    </div>,
+    document.body
+  )}
+  {selectedRecord &&
+  createPortal(
+    <div
+      className="record-modal-overlay"
+      onClick={() => setSelectedRecord(null)}
+    >
+      <div
+        className="record-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="record-modal-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="record-modal-header">
+          <h2 id="record-modal-title">
+            Record Information
+          </h2>
+
+          <button
+            type="button"
+            onClick={() => setSelectedRecord(null)}
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="record-modal-details">
+          <p>
+            <strong>Record:</strong> {selectedRecord.record}
+          </p>
+
+          <p>
+            <strong>Date:</strong> {selectedRecord.date}
+          </p>
+
+          <p>
+            <strong>Details:</strong> {selectedRecord.details}
+          </p>
+
+          <p>
+            <strong>Status:</strong> {selectedRecord.status}
+          </p>
+
+          {selectedRecord.quantity !== undefined && (
+            <p>
+              <strong>Quantity:</strong> {selectedRecord.quantity}
+            </p>
+          )}
+
+          {selectedRecord.amount !== undefined && (
+            <p>
+              <strong>Amount:</strong>{" "}
+              {formatCurrency(selectedRecord.amount)}
+            </p>
+          )}
+        </div>
+
+        <button
+          type="button"
+          className="record-modal-close"
+          onClick={() => setSelectedRecord(null)}
+        >
+          Close
+        </button>
+      </div>
+    </div>,
+    document.body
+  )}
     </section>
   );
 }

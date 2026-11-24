@@ -43,7 +43,7 @@
   border: 0;
   border-radius: 9px;
   padding: 12px 17px;
-  background: #172033;
+  background: #ec4899;
   color: #fff;
   font-size: 13px;
   font-weight: 700;
@@ -52,7 +52,7 @@
 }
 
 .members-add-button:hover {
-  background: #334155;
+  background: #ec489acb;
   transform: translateY(-1px);
 }
 
@@ -679,4 +679,40 @@
   .members-modal-actions button {
     width: 100%;
   }
+}
+
+/* Clickable membership cards */
+
+button.membership-summary-card {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.membership-summary-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.membership-summary-card.membership-card-active {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+  background-color: #eff6ff;
+}
+
+.membership-summary-card:focus-visible {
+  outline: 2px solid #2563eb;
+}
+
+.membership-card-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+button.membership-summary-card
+.membership-summary-count {
+  display: block;
 }

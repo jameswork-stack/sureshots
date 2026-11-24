@@ -13,14 +13,6 @@ const getTodayDate = () => {
   return `${year}-${month}-${day}`;
 };
 
-const getStartOfCurrentMonthDate = () => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-
-  return `${year}-${month}-01`;
-};
-
 const formatDateKey = (date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -75,12 +67,11 @@ export default function Dashboard() {
   const [totalSalesRevenue, setTotalSalesRevenue] = useState(0);
   const [totalRangeSales, setTotalRangeSales] = useState(0);
   const [totalRangeFeeAvailed, setTotalRangeFeeAvailed] = useState(0);
-  const [totalMembershipSales, setTotalMembershipSales] = useState(0);
   const [topPackages, setTopPackages] = useState([]);
   const [salesData, setSalesData] = useState([]);
 
   const [salesFilter, setSalesFilter] = useState("7days");
-  const [dateFrom, setDateFrom] = useState(getStartOfCurrentMonthDate);
+  const [dateFrom, setDateFrom] = useState(getTodayDate);
   const [dateTo, setDateTo] = useState(getTodayDate);
 
   const [loading, setLoading] = useState(true);
@@ -345,27 +336,6 @@ export default function Dashboard() {
           )
         : attendanceRecords;
       setPresentMembers(selectedAttendance.length);
-
-      const membershipSnapshot = await getDocs(
-        collection(db, "sureshotsMembers")
-      );
-      const membershipSales = membershipSnapshot.docs.reduce(
-        (total, memberDoc) => {
-          const member = memberDoc.data();
-          const createdAt = getDateFromValue(member.createdAt);
-          if (
-            (dateFrom || dateTo) &&
-            !isDateInSelectedRange(createdAt, dateFrom, dateTo)
-          ) {
-            return total;
-          }
-
-          const price = Number(member.membershipPrice);
-          return Number.isFinite(price) ? total + price : total;
-        },
-        0
-      );
-      setTotalMembershipSales(membershipSales);
 
       const rangeSoldSnapshot = await getDocs(collection(db, "rangeSold"));
       const rangeSoldRevenue = rangeSoldSnapshot.docs.reduce((total, soldDoc) => {
@@ -893,32 +863,6 @@ export default function Dashboard() {
           </div>
 
         </Link>
-
-        {/* Membership Sales */}
-
-          <Link
-            className="dashboard-card dashboard-card-link membership-sales-card"
-            to={getCardDetailsUrl("membership-sales", dateFrom, dateTo)}
-            aria-label="View records included in Total Membership Sales"
-          >
-
-            <div className="dashboard-card-content">
-
-              <p>Total Membership Sales</p>
-
-              <h2>
-                {loading
-                  ? "..."
-                  : formatCurrency(totalMembershipSales)}
-              </h2>
-
-              <span>
-                Regular, Gold, and Diamond memberships
-              </span>
-
-            </div>
-
-          </Link>
 
         {/* Range Fee Availed */}
 

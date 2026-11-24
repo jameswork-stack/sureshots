@@ -38,7 +38,7 @@
 
 .product-add-button,
 .product-save-button {
-  background: #172033;
+  background: #ec4899;
   color: #fff;
 }
 
@@ -49,7 +49,7 @@
 
 .product-add-button:hover,
 .product-save-button:hover:not(:disabled) {
-  background: #334155;
+  background: #ec489acb;
 }
 
 .product-add-button span {
@@ -341,5 +341,90 @@
   .product-save-button,
   .product-cancel-button {
     width: 100%;
+  }
+}
+
+/* PRODUCT SEARCH BAR */
+
+.product-search-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.product-search-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 420px;
+  padding: 12px 15px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-sizing: border-box;
+  transition: 0.2s ease;
+}
+
+.product-search-box:focus-within {
+  border-color: #8a4865;
+  box-shadow: 0 0 0 3px rgba(138, 72, 101, 0.08);
+}
+
+.product-search-box svg {
+  flex-shrink: 0;
+  color: #64748b;
+}
+
+.product-search-box input {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.product-search-box input::placeholder {
+  color: #94a3b8;
+}
+
+.product-search-box input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.product-search-clear {
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.product-search-clear:hover {
+  color: #dc2626;
+}
+
+.product-search-count {
+  font-size: 13px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+/* MOBILE RESPONSIVE */
+
+@media (max-width: 600px) {
+  .product-search-container {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .product-search-box {
+    max-width: 100%;
   }
 }

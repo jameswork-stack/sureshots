@@ -19,6 +19,72 @@ const RANGE_PACKAGE_CATEGORY_LABELS = {
   Others: "Others",
 };
 
+const formatDateKey = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const getStartOfCurrentMonth = () => {
+  const today = new Date();
+
+  return formatDateKey(
+    new Date(today.getFullYear(), today.getMonth(), 1)
+  );
+};
+
+const getEndOfCurrentMonth = () => {
+  const today = new Date();
+
+  return formatDateKey(
+    new Date(today.getFullYear(), today.getMonth() + 1, 0)
+  );
+};
+
+const getBookingDateTime = (booking) => {
+  let date;
+
+  // Handle Firestore Timestamp
+  if (typeof booking.bookDate?.toDate === "function") {
+    date = booking.bookDate.toDate();
+  } else if (typeof booking.bookDate === "string") {
+    date = new Date(
+      `${booking.bookDate.slice(0, 10)}T00:00:00`
+    );
+  }
+
+  if (!date || Number.isNaN(date.getTime())) {
+    return 0;
+  }
+
+  const time = String(booking.bookTime || "").trim();
+
+  const match = time.match(
+    /^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i
+  );
+
+  if (match) {
+    let hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    const seconds = Number(match[3] || 0);
+    const period = match[4]?.toUpperCase();
+
+    if (period === "PM" && hours < 12) {
+      hours += 12;
+    }
+
+    if (period === "AM" && hours === 12) {
+      hours = 0;
+    }
+
+    date.setHours(hours, minutes, seconds, 0);
+  }
+
+  return date.getTime();
+};
+
 export default function BookingHistory() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,6 +92,8 @@ export default function BookingHistory() {
   const [printingBooking, setPrintingBooking] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [menuPosition, setMenuPosition] = useState(null);
+  const [dateFrom, setDateFrom] = useState(getStartOfCurrentMonth);
+  const [dateTo, setDateTo] = useState(getEndOfCurrentMonth);
 
   const fetchBookingHistory = async () => {
     try {
@@ -183,6 +251,31 @@ export default function BookingHistory() {
 
   const selectedBooking = bookings.find((booking) => booking.id === openMenuId);
 
+  const filteredBookings = bookings
+  .filter((booking) => {
+    if (!dateFrom && !dateTo) return true;
+
+    let bookingDate = "";
+
+    if (typeof booking.bookDate?.toDate === "function") {
+      bookingDate = formatDateKey(
+        booking.bookDate.toDate()
+      );
+    } else if (typeof booking.bookDate === "string") {
+      bookingDate = booking.bookDate.slice(0, 10);
+    }
+
+    if (!bookingDate) return false;
+
+    return (
+      (!dateFrom || bookingDate >= dateFrom) &&
+      (!dateTo || bookingDate <= dateTo)
+    );
+  })
+  .sort((a, b) => {
+    return getBookingDateTime(b) - getBookingDateTime(a);
+  });
+
   const handleDeleteBooking = async (id) => {
   const confirmed = window.confirm(
     "Are you sure you want to permanently delete this booking history?"
@@ -208,26 +301,82 @@ export default function BookingHistory() {
     <div className="booking-history-page">
 
       <div className="booking-history-header">
-        <div>
-          <h1>Booking History</h1>
-          <p>View completed and cancelled bookings.</p>
-        </div>
-      </div>
+  <div>
+    <h1>Booking History</h1>
+    <p>View completed and cancelled bookings.</p>
+  </div>
+
+  <div className="history-date-filter">
+    <label>
+      <span>From</span>
+
+      <input
+        type="date"
+        value={dateFrom}
+        max={dateTo || undefined}
+        onChange={(event) => {
+          setDateFrom(event.target.value);
+          setOpenMenuId(null);
+        }}
+      />
+    </label>
+
+    <label>
+      <span>To</span>
+
+      <input
+        type="date"
+        value={dateTo}
+        min={dateFrom || undefined}
+        onChange={(event) => {
+          setDateTo(event.target.value);
+          setOpenMenuId(null);
+        }}
+      />
+    </label>
+
+    <button
+      type="button"
+      className="history-date-reset"
+      onClick={() => {
+        setDateFrom(getStartOfCurrentMonth());
+        setDateTo(getEndOfCurrentMonth());
+        setOpenMenuId(null);
+      }}
+    >
+      Reset
+    </button>
+
+    <button
+      type="button"
+      className="history-date-clear"
+      onClick={() => {
+        setDateFrom("");
+        setDateTo("");
+        setOpenMenuId(null);
+      }}
+    >
+      Clear
+    </button>
+  </div>
+</div>
 
       <div className="booking-history-list">
 
         <div className="booking-history-list-header">
           <h2>Booking History</h2>
-          <span>{bookings.length} records</span>
+          <span>
+  Showing {filteredBookings.length} of {bookings.length} records
+</span>
         </div>
 
         {loading ? (
           <div className="history-message">
             Loading booking history...
           </div>
-        ) : bookings.length === 0 ? (
+        ) : filteredBookings.length === 0 ? (
           <div className="history-message">
-            No completed or cancelled bookings yet.
+            No booking records found within the selected date range.
           </div>
         ) : (
           <div className="history-table-container">
@@ -245,7 +394,7 @@ export default function BookingHistory() {
               </thead>
 
               <tbody>
-                {bookings.map((item) => (
+                {filteredBookings.map((item) => (
                   <tr key={item.id}>
 
                     <td>

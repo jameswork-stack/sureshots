@@ -195,7 +195,7 @@
   border: none;
   border-radius: 8px;
 
-  background: #2563eb;
+  background: #ec4899;
   color: white;
 
   font-size: 15px;
@@ -205,7 +205,7 @@
 }
 
 .add-booking-btn:hover {
-  background: #1d4ed8;
+  background: #ec489ad0;
 }
 
 /* Overlay */

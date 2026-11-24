@@ -38,6 +38,7 @@ const getCreatedAtTime = (createdAt) => {
 
 export default function Product() {
   const [products, setProducts] = useState([]);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -48,8 +49,21 @@ export default function Product() {
   const [productForm, setProductForm] = useState(EMPTY_PRODUCT_FORM);
   const [pageError, setPageError] = useState("");
   const [formError, setFormError] = useState("");
-  const productGroups = Array.from(
-    products.reduce((groups, product) => {
+  const filteredProducts = products.filter((product) => {
+  const searchTerm = search.trim().toLowerCase();
+
+  return [
+    product.productName,
+    product.category,
+    product.details,
+    product.barcode,
+  ].some((value) =>
+    String(value ?? "").toLowerCase().includes(searchTerm)
+  );
+});
+
+const productGroups = Array.from(
+  filteredProducts.reduce((groups, product) => {
       const category =
         typeof product.category === "string" && product.category.trim()
           ? product.category.trim()
@@ -430,12 +444,60 @@ export default function Product() {
         </form>
       )}
 
+      <div className="product-search-container">
+  <div className="product-search-box">
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.35-4.35" />
+    </svg>
+
+    <input
+      type="search"
+      aria-label="Search products"
+      placeholder="Search product, category, or barcode..."
+      value={search}
+      onChange={(event) => {
+        setSearch(event.target.value);
+        closeMenu();
+      }}
+    />
+
+    {search && (
+      <button
+        type="button"
+        className="product-search-clear"
+        aria-label="Clear search"
+        onClick={() => setSearch("")}
+      >
+        ×
+      </button>
+    )}
+  </div>
+
+  <span className="product-search-count">
+    Showing {filteredProducts.length} of {products.length} products
+  </span>
+</div>
+
       <div className="product-list-panel">
         {loading ? (
           <p className="product-list-message">Loading products...</p>
         ) : products.length === 0 ? (
-          <p className="product-list-message">No products have been added yet.</p>
-        ) : (
+  <p className="product-list-message">
+    No products have been added yet.
+  </p>
+) : filteredProducts.length === 0 ? (
+  <p className="product-list-message">
+    No products found matching "{search}".
+  </p>
+) : (
           <div className="product-category-list">
             {productGroups.map((group) => (
               <section className="product-category-section" key={group.name.toLowerCase()}>

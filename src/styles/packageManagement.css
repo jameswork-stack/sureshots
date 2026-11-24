@@ -44,7 +44,7 @@
   gap: 8px;
   border: 0;
   border-radius: 9px;
-  background: #172033;
+  background: #ec4899;
   color: #fff;
   font: inherit;
   font-size: 13px;
@@ -59,7 +59,7 @@
 
 .package-add-button:hover,
 .package-save-button:hover:not(:disabled) {
-  background: #334155;
+  background: #ec489ad7;
 }
 
 .package-add-button span {

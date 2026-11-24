@@ -13,11 +13,7 @@ import {
 import { db } from "../firebase";
 import "../styles/members.css";
 
-const MEMBERSHIP_PRICES = {
-  Regular: 5000,
-  Gold: 10000,
-  Diamond: 15000,
-};
+const MEMBERSHIP_TYPES = ["Regular", "Gold", "Diamond"];
 
 const MEMBERS_COLLECTION = "sureshotsMembers";
 
@@ -26,17 +22,8 @@ const EMPTY_MEMBER_FORM = {
   memberNumber: "",
   memberPhoneNumber: "",
   membershipType: "",
-  membershipPrice: "",
   expirationDate: "",
 };
-
-const formatCurrency = (amount) =>
-  new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(amount);
 
 const formatDate = (dateString) => {
   if (!dateString) {
@@ -181,18 +168,14 @@ export default function Members() {
 
   const membershipSummary = useMemo(
     () =>
-      Object.entries(MEMBERSHIP_PRICES).map(([type]) => {
+      MEMBERSHIP_TYPES.map((type) => {
         const tierMembers = members.filter(
-          (member) => member.membershipType === type
+          (member) => (member.membershipType || "").trim().toLocaleLowerCase() === type.toLocaleLowerCase()
         );
 
         return {
           type,
           count: tierMembers.length,
-          sales: tierMembers.reduce((total, member) => {
-            const price = Number(member.membershipPrice);
-            return Number.isFinite(price) ? total + price : total;
-          }, 0),
         };
       }),
     [members]
@@ -213,11 +196,6 @@ export default function Members() {
       memberNumber: member.memberNumber || "",
       memberPhoneNumber: member.memberPhoneNumber || "",
       membershipType: member.membershipType || "",
-      membershipPrice: String(
-        member.membershipPrice ??
-          MEMBERSHIP_PRICES[member.membershipType] ??
-          ""
-      ),
       expirationDate: member.expirationDate || "",
     });
     setFormError("");
@@ -241,16 +219,6 @@ export default function Members() {
     setFormError("");
   };
 
-  const handleMembershipTypeChange = (event) => {
-    const membershipType = event.target.value;
-    setMemberForm((current) => ({
-      ...current,
-      membershipType,
-      membershipPrice: String(MEMBERSHIP_PRICES[membershipType] ?? ""),
-    }));
-    setFormError("");
-  };
-
   const handleSaveMember = async (event) => {
     event.preventDefault();
     setFormError("");
@@ -259,8 +227,6 @@ export default function Members() {
     const memberNumber = memberForm.memberNumber.trim();
     const memberPhoneNumber = memberForm.memberPhoneNumber.trim();
     const membershipType = memberForm.membershipType;
-    const membershipPriceInput = memberForm.membershipPrice.trim();
-    const membershipPrice = Number(membershipPriceInput);
     const expirationDate = memberForm.expirationDate;
 
     if (!memberName || !memberNumber || !memberPhoneNumber || !expirationDate) {
@@ -268,17 +234,8 @@ export default function Members() {
       return;
     }
 
-    if (!Object.hasOwn(MEMBERSHIP_PRICES, membershipType)) {
+    if (!MEMBERSHIP_TYPES.includes(membershipType)) {
       setFormError("Select a membership type.");
-      return;
-    }
-
-    if (
-      !membershipPriceInput ||
-      !Number.isFinite(membershipPrice) ||
-      membershipPrice < 0
-    ) {
-      setFormError("Enter a valid membership price of 0 or more.");
       return;
     }
 
@@ -301,7 +258,6 @@ export default function Members() {
           memberNumber,
           memberPhoneNumber,
           membershipType,
-          membershipPrice,
           expirationDate,
         });
       } else {
@@ -310,7 +266,6 @@ export default function Members() {
           memberNumber,
           memberPhoneNumber,
           membershipType,
-          membershipPrice,
           expirationDate,
           createdAt: serverTimestamp(),
         });
@@ -356,7 +311,7 @@ export default function Members() {
           <p className="members-eyebrow">MEMBERSHIP MANAGEMENT</p>
           <h1>Members</h1>
           <p className="members-subtitle">
-            Manage member details, membership tiers, and membership sales.
+            Manage member details and membership tiers.
           </p>
         </div>
         <button
@@ -368,48 +323,43 @@ export default function Members() {
         </button>
       </header>
 
-      <section className="membership-summary" aria-label="Membership sales totals">
+      <section className="membership-summary" aria-label="Membership totals">
         {membershipSummary.map((summary) => (
-          <article
-            className={`membership-summary-card membership-${summary.type.toLowerCase()}`}
+          <button
+            type="button"
+            className={`membership-summary-card membership-${summary.type.toLowerCase()} ${
+              membershipFilter === summary.type ? "membership-card-active" : ""
+            }`}
             key={summary.type}
+            aria-pressed={membershipFilter === summary.type}
+            onClick={() => {
+              setMembershipFilter((current) =>
+                current === summary.type ? "All" : summary.type
+              );
+              setOpenMenuId(null);
+              setMenuPosition(null);
+            }}
           >
-            <div className="membership-summary-heading">
+            <span className="membership-summary-heading">
               <span className="membership-tier-dot" />
-              <h2>{summary.type}</h2>
-            </div>
-            <p className="membership-summary-count">
+              <span className="membership-card-title">{summary.type}</span>
+            </span>
+            <span className="membership-summary-count">
               {summary.count} {summary.count === 1 ? "member" : "members"}
-            </p>
-            <strong>{formatCurrency(summary.sales)}</strong>
-            <span className="membership-summary-caption">Saved membership sales</span>
-          </article>
+            </span>
+          </button>
         ))}
       </section>
 
       <section className="members-list-panel">
         <div className="members-list-header">
           <div>
-            <h2>Member directory</h2>
+            <h2>{membershipFilter === "All" ? "Member directory" : `${membershipFilter} members`}</h2>
             <p>
               Showing {filteredMembers.length} of {members.length} members
             </p>
           </div>
           <div className="members-list-controls">
-            <label className="members-filter">
-              <span className="visually-hidden">Filter by membership type</span>
-              <select
-                value={membershipFilter}
-                onChange={(event) => setMembershipFilter(event.target.value)}
-              >
-                <option value="All">All membership types</option>
-                {Object.keys(MEMBERSHIP_PRICES).map((type) => (
-                  <option value={type} key={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-            </label>
             <label className="members-search">
               <span className="visually-hidden">Search members</span>
               <input
@@ -492,7 +442,6 @@ export default function Members() {
                   <th>Membership</th>
                   <th>Phone number</th>
                   <th>Expiration date</th>
-                  <th>Price</th>
                   <th>
                     <span className="visually-hidden">Actions</span>
                   </th>
@@ -525,12 +474,6 @@ export default function Members() {
                     </td>
                     <td>{member.memberPhoneNumber || "Not set"}</td>
                     <td>{formatDate(member.expirationDate)}</td>
-                    <td className="member-price">
-                      {Number.isFinite(Number(member.membershipPrice)) &&
-                      member.membershipPrice !== undefined
-                        ? formatCurrency(Number(member.membershipPrice))
-                        : "Not set"}
-                    </td>
                     <td>
                       <button
                         className="member-three-dot-btn"
@@ -663,35 +606,18 @@ export default function Members() {
                     id="membership-type"
                     name="membershipType"
                     value={memberForm.membershipType}
-                    onChange={handleMembershipTypeChange}
+                    onChange={handleMemberChange}
                     required
                   >
                     <option value="" disabled>
                       Select membership type
                     </option>
-                    {Object.keys(MEMBERSHIP_PRICES).map((type) => (
+                    {MEMBERSHIP_TYPES.map((type) => (
                       <option value={type} key={type}>
                         {type}
                       </option>
                     ))}
                   </select>
-                </div>
-
-                <div className="members-form-group">
-                  <label htmlFor="membership-price">Membership price</label>
-                  <input
-                    id="membership-price"
-                    type="number"
-                    name="membershipPrice"
-                    min="0"
-                    step="0.01"
-                    inputMode="decimal"
-                    value={memberForm.membershipPrice}
-                    onChange={handleMemberChange}
-                    placeholder="Enter membership price"
-                    required
-                  />
-                  <small>Enter any amount; the selected tier price is suggested.</small>
                 </div>
 
                 <div className="members-form-group">
@@ -763,15 +689,6 @@ export default function Members() {
               <div>
                 <dt>Expiration date</dt>
                 <dd>{formatDate(printingMember.expirationDate)}</dd>
-              </div>
-              <div>
-                <dt>Membership price</dt>
-                <dd>
-                  {Number.isFinite(Number(printingMember.membershipPrice)) &&
-                  printingMember.membershipPrice !== undefined
-                    ? formatCurrency(Number(printingMember.membershipPrice))
-                    : "Not set"}
-                </dd>
               </div>
             </dl>
           </section>

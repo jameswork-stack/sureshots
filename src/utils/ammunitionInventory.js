@@ -14,6 +14,7 @@ import {
   RANGE_PACKAGE_CATALOG,
   normalizeAmmunitionName,
 } from "./rangePackage";
+import { getLocalDateKey } from "./date";
 
 export const AMMUNITION_INVENTORY_COLLECTION = "ammunitionInventory";
 export const AMMUNITION_CATALOG_COLLECTION = "ammunitionCatalog";
@@ -27,6 +28,20 @@ const inventoryItems = [
     (item) => item.name === "Target Board"
   ),
 ];
+
+const getDailyStockOutUpdate = (inventoryData, quantity, today) => {
+  const previousQuantity =
+    inventoryData.dailyStockOutDate === today
+      ? Number(inventoryData.dailyStockOutQuantity)
+      : 0;
+  if (!Number.isInteger(previousQuantity) || previousQuantity < 0) {
+    throw new Error("Invalid daily ammunition stock-out quantity.");
+  }
+  return {
+    dailyStockOutDate: today,
+    dailyStockOutQuantity: previousQuantity + quantity,
+  };
+};
 
 export const getAmmunitionInventoryId = (ammunitionName) =>
   encodeURIComponent(normalizeAmmunitionName(ammunitionName));
@@ -432,6 +447,7 @@ export const adjustAmmunitionInventory = async (
   currentRecord,
   nextRecord
 ) => {
+  const today = getLocalDateKey();
   const previousQuantities = getInventoryQuantity(currentRecord);
   const nextQuantities = getAmmunitionQuantities(nextRecord);
   const ammunitionNames = [
@@ -473,11 +489,19 @@ export const adjustAmmunitionInventory = async (
       );
     }
 
+    const inventoryData = snapshot.exists() ? snapshot.data() : {};
+    const dailyStockOut =
+      change > 0 &&
+      normalizeAmmunitionName(name) !==
+        normalizeAmmunitionName(TARGET_BOARD_NAME)
+        ? getDailyStockOutUpdate(inventoryData, change, today)
+        : {};
     transaction.set(
       inventoryRefs[index],
       {
         name,
         quantity: currentStock - change,
+        ...dailyStockOut,
         updatedAt: serverTimestamp(),
       },
       { merge: true }
@@ -546,6 +570,7 @@ export const removeAmmunitionStock = async (
   );
 
   return runTransaction(db, async (transaction) => {
+    const today = getLocalDateKey();
     const snapshot = await transaction.get(inventoryRef);
     const isBuiltIn = inventoryItems.some(
       (item) => item.name === inventoryName
@@ -566,11 +591,21 @@ export const removeAmmunitionStock = async (
     }
 
     const updatedStock = currentStock - amount;
+    const dailyStockOut =
+      normalizeAmmunitionName(inventoryName) !==
+      normalizeAmmunitionName(TARGET_BOARD_NAME)
+        ? getDailyStockOutUpdate(
+            snapshot.exists() ? snapshot.data() : {},
+            amount,
+            today
+          )
+        : {};
     transaction.set(
       inventoryRef,
       {
         name: ammunitionName,
         quantity: updatedStock,
+        ...dailyStockOut,
         updatedAt: serverTimestamp(),
       },
       { merge: true }
