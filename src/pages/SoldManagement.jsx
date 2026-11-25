@@ -76,6 +76,8 @@ const fetchProducts = async () => {
 
 export default function SoldManagement() {
   const [soldItems, setSoldItems] = useState([]);
+  const [showSales, setShowSales] = useState(false);
+  const [productSearch, setProductSearch] = useState("");
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [productLoadError, setProductLoadError] = useState("");
@@ -276,25 +278,6 @@ export default function SoldManagement() {
     setError("");
   };
 
-  const addProductLine = () => {
-    setProductLines((current) => [...current, { productId: "", quantity: "" }]);
-  };
-
-  const updateProductLine = (index, field, value) => {
-    setProductLines((current) =>
-      current.map((line, lineIndex) =>
-        lineIndex === index
-          ? {
-              ...line,
-              [field]: value,
-              ...(field === "productId" ? { quantity: value ? "1" : "" } : {}),
-            }
-          : line
-      )
-    );
-    setError("");
-  };
-
   const removeProductLine = (index) => {
     setProductLines((current) =>
       current.filter((_, lineIndex) => lineIndex !== index)
@@ -337,6 +320,28 @@ export default function SoldManagement() {
     return Number.isInteger(stock) && stock >= 0
       ? stock + quantityToRestore
       : 0;
+  };
+
+  const filteredProducts = products.filter((product) => {
+    const term = productSearch.trim().toLowerCase();
+    return [product.productName, product.category, product.details, product.barcode]
+      .some((value) => String(value ?? "").toLowerCase().includes(term));
+  });
+
+  const changeCartQuantity = (productId, delta) => {
+    if (saving) return;
+    const available = getAvailableProductStock(productId);
+    setProductLines((current) => {
+      const line = current.find((item) => item.productId === productId);
+      const next = Number(line?.quantity || 0) + delta;
+      if (next <= 0) return current.filter((item) => item.productId !== productId);
+      if (delta > 0 && next > available) return current;
+      return line
+        ? current.map((item) => item.productId === productId
+            ? { ...item, quantity: String(next) } : item)
+        : [...current, { productId, quantity: String(next) }];
+    });
+    setError("");
   };
 
   const resetForm = () => {
@@ -583,8 +588,26 @@ export default function SoldManagement() {
           if (!Number.isFinite(unitPrice) || unitPrice < 0) {
             throw new Error(`${productData.productName || item.name} has an invalid price.`);
           }
+          // Retain historical cost for existing units; use current cost for added units.
+          const previous = (currentSale?.productItems || []).find(
+            (oldItem) => oldItem.productId === item.productId
+          );
+          const retained = Math.min(Number(previous?.quantity || 0), Number(item.quantity));
+          const added = Number(item.quantity) - retained;
+          const validCost = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0;
+          const oldCost = previous?.unitCost;
+          const currentCost = productData.unitCost;
+          if (added > 0 && !validCost(currentCost)) {
+            throw new Error(`Set the purchase cost for ${item.name} in Product Management first.`);
+          }
+          const costOfGoodsSold = retained > 0 && !validCost(oldCost)
+            ? null
+            : (retained > 0 ? retained * oldCost : 0) + (added > 0 ? added * currentCost : 0);
+          const unitCost = costOfGoodsSold === null ? null : costOfGoodsSold / Number(item.quantity);
           return {
             ...item,
+            unitCost,
+            costOfGoodsSold,
             name: productData.productName || item.name,
             barcode: productData.barcode || "",
             unitPrice,
@@ -634,6 +657,9 @@ export default function SoldManagement() {
         const nextSaleData = {
           ...saleData,
           productItems: pricedProductItems,
+          productCOGS: pricedProductItems.some((item) => item.costOfGoodsSold === null)
+            ? null
+            : Math.round(pricedProductItems.reduce((sum, item) => sum + item.costOfGoodsSold, 0) * 100) / 100,
           subtotalAmount: nextSubtotalAmount,
           discountAmount: nextDiscountAmount,
           totalAmount: nextSubtotalAmount - nextDiscountAmount,
@@ -807,10 +833,14 @@ export default function SoldManagement() {
           <h1>Sold Management</h1>
           <p>Record and review Range Package items and products sold.</p>
         </div>
+        <button type="button" className="sold-history-toggle"
+          aria-expanded={showSales} aria-controls="sold-sales-history"
+          onClick={() => { setShowSales((value) => !value); closeActionMenu(); }}>
+          {showSales ? "Hide Sales Records" : "Show Sales Records"} ({soldItems.length})
+        </button>
       </header>
 
-      <div className="sold-pos-layout">
-        <section className="sold-list">
+      {showSales && <section className="sold-list" id="sold-sales-history">
           <div className="sold-list-header">
             <h2>Sales</h2>
             <span>{soldItems.length} records</span>
@@ -881,16 +911,70 @@ export default function SoldManagement() {
               </table>
             </div>
           )}
-        </section>
+        </section>}
 
+      <div className="sold-card-pos-layout">
+        <section className="sold-catalog-panel">
+          <h2>Products</h2>
+          <input type="search" className="sold-catalog-search"
+            aria-label="Search products" placeholder="Search name, category or barcode..."
+            value={productSearch} onChange={(event) => setProductSearch(event.target.value)} />
+          {productLoadError && <p role="alert">{productLoadError}</p>}
+          {productsLoading ? <p>Loading products...</p> : !productLoadError && (
+            filteredProducts.length === 0 ? <p>No matching products.</p> :
+            <div className="sold-catalog-grid">
+              {filteredProducts.map((product) => {
+                const available = getAvailableProductStock(product.id);
+                const inCart = Number(productLines.find((line) => line.productId === product.id)?.quantity || 0);
+                return (
+                  <button type="button" className="sold-catalog-card" key={product.id}
+                    disabled={saving || available <= inCart}
+                    onClick={() => changeCartQuantity(product.id, 1)}>
+                    <small>{product.category || "Uncategorized"}</small>
+                    <strong>{product.productName || "Product"}</strong>
+                    <span>{product.details}</span>
+                    <b>{formatCurrency(Number(product.price) || 0)}</b>
+                    <small>Available: {Math.max(0, available - inCart)} · In cart: {inCart}</small>
+                    <span className="sold-catalog-add">{available <= inCart ? "Unavailable" : "+ Add to cart"}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
         <section className="sold-form-card sold-entry-panel" aria-labelledby="sold-form-title">
           <header className="sold-form-header">
             <div>
-              <h2 id="sold-form-title">{editingSaleId ? "Edit Sold Items" : "Add Sold Items"}</h2>
+              <h2 id="sold-form-title">{editingSaleId ? "Edit Sold Items" : "Cart / Add Sold Items"}</h2>
               <p>New sales use today's date; edits keep the original date.</p>
             </div>
           </header>
           <form onSubmit={handleSubmit}>
+            <section className="sold-products-builder sold-cart-panel">
+              <div className="range-package-heading">
+                <h3>Product Cart ({productLines.reduce((sum, line) => sum + Number(line.quantity || 0), 0)})</h3>
+              </div>
+              {productLines.length === 0 && <p className="sold-products-empty">Select a product card to add it to the cart.</p>}
+              {productLines.map((line, index) => {
+                const product = products.find((item) => item.id === line.productId);
+                const quantity = Number(line.quantity);
+                return (
+                  <div className="sold-cart-row" key={line.productId}>
+                    <div><strong>{product?.productName || "Unavailable product"}</strong>
+                      <small>{formatCurrency(Number(product?.price) || 0)} each</small></div>
+                    <div className="sold-cart-controls">
+                      <button type="button" disabled={saving} aria-label="Decrease quantity" onClick={() => changeCartQuantity(line.productId, -1)}>−</button>
+                      <span>{quantity}</span>
+                      <button type="button" aria-label="Increase quantity" disabled={saving || quantity >= getAvailableProductStock(line.productId)} onClick={() => changeCartQuantity(line.productId, 1)}>+</button>
+                    </div>
+                    <strong>{formatCurrency((Number(product?.price) || 0) * quantity)}</strong>
+                    <button type="button" className="sold-cart-remove" disabled={saving} onClick={() => removeProductLine(index)}>Remove</button>
+                  </div>
+                );
+              })}
+              <p>Product subtotal: <strong>{formatCurrency(productSalesTotal)}</strong></p>
+            </section>
+
             <div className="sold-form-fields">
               <label>
                 Sold To <span>(optional)</span>
@@ -1034,115 +1118,6 @@ export default function SoldManagement() {
               ))}
             </section>
 
-            <section className="sold-products-builder">
-              <div className="range-package-heading">
-                <h3>Products</h3>
-                <p>Select products and quantities to add them to this sale.</p>
-              </div>
-              {productLoadError && (
-                <p className="sold-form-error" role="alert">
-                  {productLoadError}
-                </p>
-              )}
-              {productsLoading && (
-                <p className="sold-products-empty" role="status">
-                  Loading products...
-                </p>
-              )}
-              {!productsLoading && !productLoadError && products.length === 0 && (
-                <p className="sold-products-empty">
-                  No products are available. Add products in Product Management first.
-                </p>
-              )}
-              {productLines.map((line, index) => {
-                const selectedProduct = products.find(
-                  (product) => product.id === line.productId
-                );
-                const quantity = Number(line.quantity);
-                const subtotal =
-                  selectedProduct &&
-                  Number.isInteger(quantity) &&
-                  quantity > 0
-                    ? Number(selectedProduct.price) * quantity
-                    : 0;
-                return (
-                  <div className="sold-product-row" key={`product-line-${index}`}>
-                    <label>
-                      Product
-                      <select
-                        value={line.productId}
-                        onChange={(event) =>
-                          updateProductLine(index, "productId", event.target.value)
-                        }
-                        disabled={productsLoading || Boolean(productLoadError)}
-                      >
-                        <option value="">Select a product</option>
-                        {products.map((product) => {
-                          const selectedElsewhere = productLines.some(
-                            (otherLine, otherIndex) =>
-                              otherIndex !== index &&
-                              otherLine.productId === product.id
-                          );
-                          const available = getAvailableProductStock(product.id);
-                          return (
-                            <option
-                              key={product.id}
-                              value={product.id}
-                              disabled={selectedElsewhere || available < 1}
-                            >
-                              {product.productName} · {formatCurrency(Number(product.price) || 0)} · Stock {available}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </label>
-                    <label>
-                      Quantity
-                      <input
-                        type="number"
-                        min="1"
-                        max={
-                          selectedProduct
-                            ? getAvailableProductStock(selectedProduct.id)
-                            : undefined
-                        }
-                        step="1"
-                        value={line.quantity}
-                        onChange={(event) =>
-                          updateProductLine(index, "quantity", event.target.value)
-                        }
-                        disabled={!selectedProduct}
-                      />
-                    </label>
-                    <div className="sold-product-subtotal">
-                      <span>Subtotal</span>
-                      <strong>{formatCurrency(subtotal)}</strong>
-                    </div>
-                    <button
-                      className="sold-product-remove"
-                      type="button"
-                      onClick={() => removeProductLine(index)}
-                      aria-label={`Remove product row ${index + 1}`}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                );
-              })}
-              <button
-                className="sold-product-add"
-                type="button"
-                onClick={addProductLine}
-                disabled={
-                  productsLoading ||
-                  Boolean(productLoadError) ||
-                  products.length === 0
-                }
-              >
-                + Add Product
-              </button>
-            </section>
-
             {error && <p className="sold-form-error" role="alert">{error}</p>}
             <div className="sold-price-summary">
               <div>
@@ -1170,7 +1145,7 @@ export default function SoldManagement() {
                 </button>
               )}
               <button className="sold-save-button" type="submit" disabled={saving}>
-                {saving ? "Saving…" : editingSaleId ? "Save Changes" : "Save Sold Items"}
+                {saving ? "Saving…" : editingSaleId ? "Save Changes" : "Checkout"}
               </button>
             </div>
           </form>
@@ -1311,6 +1286,10 @@ export default function SoldManagement() {
                   </div>
                 </>
               )}
+            <div className="sold-total">
+              <span>Product COGS</span>
+              <strong>{viewingSale.productCOGS == null ? "Not recorded" : formatCurrency(viewingSale.productCOGS)}</strong>
+            </div>
             <div className="sold-total">
               <span>Total</span>
               <strong>{formatCurrency(getSaleTotal(viewingSale))}</strong>

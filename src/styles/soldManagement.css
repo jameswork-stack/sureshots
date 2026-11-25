@@ -583,3 +583,31 @@
     font-weight: 700;
   }
 }
+
+/* Append to existing soldManagement.css */
+.sold-management-header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; }
+.sold-history-toggle { border:1px solid #8a4865; border-radius:8px; padding:11px 16px; background:#fff; color:#8a4865; font-weight:600; cursor:pointer; }
+.sold-management-page > .sold-list { margin-bottom:20px; }
+.sold-card-pos-layout { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:20px; align-items:start; }
+.sold-card-pos-layout > * { min-width:0; }
+.sold-catalog-panel { background:#fff; border:1px solid #e2e8f0; padding:18px; border-radius:14px; }
+.sold-catalog-panel h2 { margin:0 0 14px; }
+.sold-catalog-search { width:100%; box-sizing:border-box; padding:12px; border:1px solid #cbd5e1; border-radius:8px; margin-bottom:16px; font:inherit; }
+.sold-catalog-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(155px,100%),1fr)); gap:12px; }
+.sold-catalog-card { min-width:0; display:flex; flex-direction:column; gap:8px; align-items:flex-start; text-align:left; padding:14px; border:1px solid #e2e8f0; border-radius:10px; background:#fff; color:#0f172a; cursor:pointer; overflow-wrap:anywhere; font:inherit; }
+.sold-catalog-card:hover:not(:disabled) { border-color:#8a4865; background:#fcf6f9; }
+.sold-catalog-card small,.sold-catalog-card > span:not(.sold-catalog-add) { color:#64748b; font-size:12px; }
+.sold-catalog-card b { color:#8a4865; font-size:18px; margin-top:auto; }
+.sold-catalog-add { box-sizing:border-box; width:100%; text-align:center; background:#8a4865; color:#fff; padding:8px; border-radius:6px; font-size:12px; }
+.sold-catalog-card:disabled { opacity:.55; cursor:not-allowed; }
+.sold-cart-panel { margin-bottom:20px; }
+.sold-cart-row { display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:12px 0; border-bottom:1px solid #e2e8f0; }
+.sold-cart-row > div:first-child { flex:1; min-width:100px; overflow-wrap:anywhere; }
+.sold-cart-row small { display:block; color:#64748b; margin-top:5px; }
+.sold-cart-controls { display:flex; align-items:center; gap:9px; }
+.sold-cart-controls button { width:30px; height:30px; background:#fff; border:1px solid #cbd5e1; border-radius:6px; cursor:pointer; font-size:18px; }
+.sold-cart-controls button:disabled { opacity:.4; cursor:not-allowed; }
+.sold-cart-remove { border:0; background:transparent; color:#b91c1c; cursor:pointer; font-size:12px; }
+.sold-card-pos-layout .sold-save-button { background:#15803d; color:#fff; }
+@media(max-width:900px) { .sold-card-pos-layout { grid-template-columns:1fr; } }
+@media print { .sold-history-toggle,.sold-card-pos-layout,.sold-management-page > .sold-list { display:none !important; } }
