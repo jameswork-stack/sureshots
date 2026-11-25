@@ -611,3 +611,45 @@
 .sold-card-pos-layout .sold-save-button { background:#15803d; color:#fff; }
 @media(max-width:900px) { .sold-card-pos-layout { grid-template-columns:1fr; } }
 @media print { .sold-history-toggle,.sold-card-pos-layout,.sold-management-page > .sold-list { display:none !important; } }
+
+/* PRODUCT CATEGORY FILTER */
+
+.sold-category-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.sold-category-filter label {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sold-category-filter select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #172033;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+
+.sold-category-filter select:focus {
+  border-color: #ec4899;
+  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1);
+}
+
+@media (max-width: 768px) {
+  .sold-category-filter select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}

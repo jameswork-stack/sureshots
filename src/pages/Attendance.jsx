@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "../styles/attendance.css";
 import { db } from "../firebase";
 
@@ -12,12 +12,50 @@ import {
   serverTimestamp,
   query,
   orderBy,
+  onSnapshot,
+  runTransaction,
 } from "firebase/firestore";
 
+const PH_ZONE = "Asia/Manila";
+const phDate = (date) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: PH_ZONE, year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(date);
+  const part = (type) => parts.find((p) => p.type === type).value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+};
+const phTime = (date, seconds = false) => new Intl.DateTimeFormat("en-US", {
+  timeZone: PH_ZONE, hour: "numeric", minute: "2-digit",
+  ...(seconds ? { second: "2-digit" } : {}), hour12: true,
+}).format(date).replace(/\s+/g, " ");
+const isOpen = (record) => Boolean(record?.timeIn && !record.timeOut && record.status === "Present");
+
 export default function Attendance() {
+  const [clock, setClock] = useState(() => new Date());
+  const [attendanceReady, setAttendanceReady] = useState(false);
+  const [attendanceError, setAttendanceError] = useState("");
+  const punchLock = useRef(false);
+  useEffect(() => {
+    const timer = setInterval(() => setClock(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  useEffect(() => onSnapshot(
+    query(collection(db, "attendance"), orderBy("createdAt", "desc")),
+    { includeMetadataChanges: true },
+    (snapshot) => {
+      const records = snapshot.docs.map((item) => ({id: item.id, ...item.data()}));
+      records.sort((a,b) => (b.date || "").localeCompare(a.date || ""));
+      setAttendanceRecords(records);
+      setAttendanceReady(!snapshot.metadata.fromCache);
+      setAttendanceError("");
+    },
+    (error) => { setAttendanceReady(false); setAttendanceError(error.message); }
+  ), []);
+
   const [members, setMembers] = useState([]);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [attendanceMemberFilter, setAttendanceMemberFilter] = useState("");
+  const [attendanceMonth, setAttendanceMonth] = useState(() => phDate(new Date()).slice(0, 7));
   const [viewingMemberAttendance, setViewingMemberAttendance] = useState(null);
 
   const [loading, setLoading] = useState(true);
@@ -40,7 +78,6 @@ export default function Attendance() {
     member: null,
     action: "",
     date: "",
-    time: "",
   });
 
   // =========================
@@ -336,16 +373,13 @@ export default function Attendance() {
   // =========================
 
   const openAttendanceForm = (member, action) => {
-    const today = new Date()
-      .toISOString()
-      .split("T")[0];
+    const today = phDate(new Date());
 
     setAttendanceForm({
       member,
       action,
       date: today,
-      time: "",
-    });
+      });
 
     setShowAttendanceForm(true);
   };
@@ -361,30 +395,7 @@ export default function Attendance() {
       member: null,
       action: "",
       date: "",
-      time: "",
-    });
-  };
-
-  // =========================
-  // FORMAT TIME
-  // =========================
-
-  const formatTime12Hour = (time) => {
-    if (!time) return "";
-
-    const [hours, minutes] = time.split(":");
-
-    let hour = Number(hours);
-
-    const ampm = hour >= 12 ? "PM" : "AM";
-
-    hour = hour % 12;
-
-    if (hour === 0) {
-      hour = 12;
-    }
-
-    return `${hour}:${minutes} ${ampm}`;
+      });
   };
 
   // =========================
@@ -445,11 +456,61 @@ export default function Attendance() {
     ).values(),
   ].sort((a, b) => a.name.localeCompare(b.name));
 
-  const filteredAttendanceRecords = attendanceMemberFilter
-    ? attendanceRecords.filter(
-        (record) => record.memberId === attendanceMemberFilter
-      )
-    : attendanceRecords;
+  const filteredAttendanceRecords = attendanceRecords.filter((record) =>
+    (!attendanceMemberFilter || record.memberId === attendanceMemberFilter) &&
+    (!attendanceMonth || (typeof record.date === "string" && record.date.slice(0, 7) === attendanceMonth))
+  );
+
+  const recordPunch = async (member, action) => {
+    if (punchLock.current || saving || !attendanceReady) return;
+    punchLock.current = true;
+    setSaving(true);
+    const now = new Date();
+    const date = phDate(now);
+    const time = phTime(now);
+    const memberRef = doc(db, "members", member.id);
+    const newRef = doc(collection(db, "attendance"));
+    const legacy = attendanceRecords.find(r => r.memberId === member.id && isOpen(r));
+    try {
+      await runTransaction(db, async (tx) => {
+        const memberSnap = await tx.get(memberRef);
+        if (!memberSnap.exists()) throw new Error("Member no longer exists.");
+        const memberData = memberSnap.data();
+        const ids = [...new Set([memberData.activeAttendanceId, legacy?.id].filter(Boolean))];
+        const refs = ids.map(id => doc(db, "attendance", id));
+        const snapshots = await Promise.all(refs.map(ref => tx.get(ref)));
+        const active = snapshots.find(snap => snap.exists() && snap.data().memberId === member.id && isOpen(snap.data()));
+        if (action === "Time In") {
+          if (active) throw new Error("Record Time Out before another Time In.");
+          if (attendanceRecords.some(r => r.memberId === member.id && r.date === date && ["Absent", "Rest Day"].includes(r.status))) {
+            throw new Error("This member is marked Absent or Rest Day today.");
+          }
+          tx.set(newRef, {
+            memberId: member.id,
+            memberName: memberData.memberName || member.memberName || "",
+            memberNumber: memberData.memberNumber || member.memberNumber || "",
+            date, timeIn: time, timeOut: "", status: "Present",
+            createdAt: serverTimestamp(), timeInAt: serverTimestamp(),
+          });
+          tx.update(memberRef, { activeAttendanceId: newRef.id });
+        } else {
+          if (!active) throw new Error("No active Time In was found.");
+          tx.update(active.ref, {
+            timeOut: time, timeOutDate: date,
+            timeOutAt: serverTimestamp(), status: "Completed",
+          });
+          tx.update(memberRef, { activeAttendanceId: null });
+        }
+      });
+      await fetchAttendance();
+    } catch (error) {
+      console.error("Attendance punch failed:", error);
+      alert(error.message || "Unable to record attendance.");
+    } finally {
+      punchLock.current = false;
+      setSaving(false);
+    }
+  };
 
   // =========================
   // SUBMIT ATTENDANCE
@@ -462,7 +523,6 @@ export default function Attendance() {
       member,
       action,
       date,
-      time,
     } = attendanceForm;
 
     if (!member) {
@@ -476,192 +536,14 @@ export default function Attendance() {
     }
 
     // =========================
-    // TIME IN
-    // =========================
-
-    if (action === "Time In") {
-      if (!time) {
-        alert("Please select the Time In.");
-        return;
-      }
-
-      const existingRecord =
-        getAttendanceForMemberDate(
-          member.id,
-          date
-        );
-
-      if (existingRecord) {
-        alert(
-          "This member already has an attendance record for this date."
-        );
-        return;
-      }
-
-      try {
-        setSaving(true);
-
-        await addDoc(
-          collection(db, "attendance"),
-          {
-            memberId: member.id,
-            memberName: member.memberName,
-            memberNumber: member.memberNumber,
-            date: date,
-            timeIn: formatTime12Hour(time),
-            timeOut: "",
-            status: "Present",
-            createdAt: serverTimestamp(),
-          }
-        );
-
-        closeAttendanceForm();
-
-        await fetchAttendance();
-
-        alert("Time In recorded successfully.");
-      } catch (error) {
-        console.error(
-          "Error recording Time In:",
-          error
-        );
-
-        alert("Failed to record Time In.");
-      } finally {
-        setSaving(false);
-      }
-
-      return;
-    }
-
-    // =========================
-    // TIME OUT
-    // =========================
-
-    if (action === "Time Out") {
-      if (!time) {
-        alert("Please select the Time Out.");
-        return;
-      }
-
-      const existingRecord =
-        getAttendanceForMemberDate(
-          member.id,
-          date
-        );
-
-      if (!existingRecord) {
-        alert(
-          "No Time In record was found for this member on the selected date."
-        );
-        return;
-      }
-
-      if (!existingRecord.timeIn) {
-        alert(
-          "This member does not have a Time In."
-        );
-        return;
-      }
-
-      if (existingRecord.timeOut) {
-        alert(
-          "This member already has a Time Out."
-        );
-        return;
-      }
-
-      // Convert saved 12-hour time to minutes
-      const convert12HourToMinutes = (
-        time12
-      ) => {
-        if (!time12) return null;
-
-        const [timePart, period] =
-          time12.split(" ");
-
-        let [hours, minutes] = timePart
-          .split(":")
-          .map(Number);
-
-        if (period === "AM") {
-          if (hours === 12) {
-            hours = 0;
-          }
-        }
-
-        if (period === "PM") {
-          if (hours !== 12) {
-            hours += 12;
-          }
-        }
-
-        return hours * 60 + minutes;
-      };
-
-      const timeInMinutes =
-        convert12HourToMinutes(
-          existingRecord.timeIn
-        );
-
-      const [outHours, outMinutes] = time
-        .split(":")
-        .map(Number);
-
-      const timeOutMinutes =
-        outHours * 60 + outMinutes;
-
-      if (
-        timeOutMinutes <= timeInMinutes
-      ) {
-        alert(
-          "Time Out cannot be earlier than or equal to Time In."
-        );
-        return;
-      }
-
-      try {
-        setSaving(true);
-
-        await updateDoc(
-          doc(
-            db,
-            "attendance",
-            existingRecord.id
-          ),
-          {
-            timeOut:
-              formatTime12Hour(time),
-            status: "Completed",
-          }
-        );
-
-        closeAttendanceForm();
-
-        await fetchAttendance();
-
-        alert(
-          "Time Out recorded successfully."
-        );
-      } catch (error) {
-        console.error(
-          "Error recording Time Out:",
-          error
-        );
-
-        alert("Failed to record Time Out.");
-      } finally {
-        setSaving(false);
-      }
-
-      return;
-    }
-
-    // =========================
     // ABSENT / REST DAY
     // =========================
 
     if (action === "Absent" || action === "Rest Day") {
+      if (!attendanceReady || attendanceRecords.some(r => r.memberId === member.id && isOpen(r))) {
+        alert("Attendance must be synced and Time Out recorded first.");
+        return;
+      }
       const existingRecord =
         getAttendanceForMemberDate(
           member.id,
@@ -815,7 +697,7 @@ export default function Attendance() {
                     <tr key={record.id}>
                       <td>{formatDate(record.date)}</td>
                       <td>{record.timeIn || "-"}</td>
-                      <td>{record.timeOut || "-"}</td>
+                      <td>{record.timeOut || "-"}{record.timeOutDate && record.timeOutDate !== record.date ? ` (${formatDate(record.timeOutDate)})` : ""}</td>
                       <td>
                         <span
                           className={`attendance-status ${
@@ -875,9 +757,17 @@ export default function Attendance() {
 
       </div>
 
+      {attendanceError && <p role="alert">Unable to sync attendance: {attendanceError}</p>}
+      {!attendanceReady && !attendanceError && <p role="status">Connecting to attendance records...</p>}
       {/* MEMBERS */}
 
       <div className="members-section">
+
+        <div className="attendance-live-clock attendance-members-clock">
+          <span>Philippine Time (UTC+8)</span>
+          <strong>{phTime(clock, true)}</strong>
+          <small>{new Intl.DateTimeFormat("en-PH", {timeZone: PH_ZONE, dateStyle: "full"}).format(clock)}</small>
+        </div>
 
         <div className="section-header">
 
@@ -902,7 +792,11 @@ export default function Attendance() {
         ) : (
           <div className="member-grid">
 
-            {members.map((member) => (
+            {members.map((member) => {
+              const activeRecord = attendanceRecords.find(r => r.memberId === member.id && isOpen(r));
+              const todayRecord = attendanceRecords.find(r => r.memberId === member.id && r.date === phDate(clock));
+              const blocked = todayRecord && ["Absent", "Rest Day"].includes(todayRecord.status);
+              return (
 
               <div
                 className="member-card"
@@ -990,63 +884,31 @@ export default function Attendance() {
 
                 </div>
 
+                <p className="attendance-punch-status">
+                  {activeRecord ? `Timed in: ${activeRecord.timeIn}` : blocked ? todayRecord.status : "Not timed in"}
+                </p>
                 {/* ATTENDANCE BUTTONS */}
 
                 <div className="member-actions">
 
-                  <button
-                    className="time-in-btn"
-                    onClick={() =>
-                      openAttendanceForm(
-                        member,
-                        "Time In"
-                      )
-                    }
-                  >
+                  <button type="button" className="time-in-btn"
+                    disabled={saving || !attendanceReady || Boolean(activeRecord) || Boolean(blocked)}
+                    onClick={() => recordPunch(member, "Time In")}>
                     Time In
                   </button>
-
-                  <button
-                    className="time-out-btn"
-                    onClick={() =>
-                      openAttendanceForm(
-                        member,
-                        "Time Out"
-                      )
-                    }
-                  >
+                  <button type="button" className="time-out-btn"
+                    disabled={saving || !attendanceReady || !activeRecord}
+                    onClick={() => recordPunch(member, "Time Out")}>
                     Time Out
                   </button>
 
-                  <button
-                    className="absent-btn"
-                    onClick={() =>
-                      openAttendanceForm(
-                        member,
-                        "Absent"
-                      )
-                    }
-                  >
-                    Absent
-                  </button>
 
-                  <button
-                    className="rest-day-btn"
-                    onClick={() =>
-                      openAttendanceForm(
-                        member,
-                        "Rest Day"
-                      )
-                    }
-                  >
-                    Rest Day
-                  </button>
 
                 </div>
 
               </div>
 
-            ))}
+            ); })}
 
           </div>
         )}
@@ -1068,6 +930,15 @@ export default function Attendance() {
           </div>
 
           <div className="attendance-record-controls">
+            <label htmlFor="attendance-month-filter">Filter by month</label>
+            <input
+              id="attendance-month-filter"
+              type="month"
+              value={attendanceMonth}
+              onChange={(event) => setAttendanceMonth(event.target.value)}
+              style={{ padding: "8px 10px", border: "1px solid #cbd5e1", borderRadius: "8px", font: "inherit" }}
+            />
+            <button type="button" onClick={() => setAttendanceMonth(phDate(new Date()).slice(0, 7))}>Current Month</button>
             <label htmlFor="attendance-member-filter">
               Filter by member
             </label>
@@ -1103,7 +974,7 @@ export default function Attendance() {
           </div>
         ) : filteredAttendanceRecords.length === 0 ? (
           <div className="attendance-message">
-            No attendance records found for this member.
+            No attendance records found for the selected filters.
           </div>
         ) : (
           <div className="attendance-table-container">
@@ -1150,7 +1021,7 @@ export default function Attendance() {
                       </td>
 
                       <td>
-                        {record.timeOut || "-"}
+                        {record.timeOut || "-"}{record.timeOutDate && record.timeOutDate !== record.date ? ` (${formatDate(record.timeOutDate)})` : ""}
                       </td>
 
                       <td>
@@ -1422,43 +1293,6 @@ export default function Attendance() {
                   />
 
                 </div>
-
-                {attendanceForm.action !== "Absent" &&
-                  attendanceForm.action !== "Rest Day" && (
-
-                  <div className="form-group">
-
-                    <label>
-                      {attendanceForm.action ===
-                      "Time In"
-                        ? "Time In"
-                        : "Time Out"}
-                    </label>
-
-                    <input
-                      type="time"
-                      value={
-                        attendanceForm.time
-                      }
-                      onChange={(e) =>
-                        setAttendanceForm(
-                          (prev) => ({
-                            ...prev,
-                            time: e.target.value,
-                          })
-                        )
-                      }
-                      required
-                    />
-
-                    <small>
-                      Time will be saved in
-                      AM/PM format.
-                    </small>
-
-                  </div>
-
-                )}
 
                 {(attendanceForm.action === "Absent" ||
                   attendanceForm.action === "Rest Day") && (

@@ -592,6 +592,17 @@ export default function BookingHistory() {
             <strong>{formatPrice(getBookingTotalAmount(viewingBooking))}</strong>
           </div>
 
+          {viewingBooking.status === "Completed" && (
+            <div className="history-view-item">
+              <span>Ammunition COGS</span>
+              <strong>
+                {viewingBooking.ammunitionCOGS == null
+                  ? "Not recorded"
+                  : formatPrice(viewingBooking.ammunitionCOGS)}
+              </strong>
+            </div>
+          )}
+
           <div className="history-view-item">
             <span>Booking Date</span>
             <strong>

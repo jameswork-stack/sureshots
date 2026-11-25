@@ -46,8 +46,6 @@
 
 .ammunition-daily-summary {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: 20px;
   margin-bottom: 18px;
   border: 1px solid #dbeafe;
@@ -55,6 +53,31 @@
   padding: 18px 22px;
   background: linear-gradient(115deg, #eff6ff, #fff);
   box-shadow: 0 5px 18px rgba(15, 23, 42, 0.04);
+}
+
+.ammunition-daily-summary-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+  gap: 20px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ammunition-daily-summary-trigger:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 4px;
+}
+
+.ammunition-daily-summary-trigger:disabled {
+  cursor: wait;
 }
 
 .ammunition-daily-summary-eyebrow {
@@ -211,9 +234,10 @@
 }
 
 .ammunition-rename-form {
-  display: flex;
-  align-items: center;
-  gap: 9px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px;
   padding: 14px 22px;
   border-bottom: 1px solid #edf1f5;
   background: #f8fafc;
@@ -229,7 +253,7 @@
 
 .ammunition-rename-form input {
   box-sizing: border-box;
-  width: min(250px, 100%);
+  width: 100%;
   min-height: 37px;
   border: 1px solid #dce3eb;
   border-radius: 7px;
@@ -237,6 +261,25 @@
   color: #172033;
   font: inherit;
   font-size: 12px;
+}
+
+.ammunition-rename-form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 72px;
+  border: 1px solid #dce3eb;
+  border-radius: 7px;
+  padding: 8px 10px;
+  color: #172033;
+  font: inherit;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.ammunition-rename-form .ammunition-cost-preview,
+.ammunition-rename-form .ammunition-form-error,
+.ammunition-rename-form .ammunition-success {
+  grid-column: 1 / -1;
 }
 
 .ammunition-rename-form button {
@@ -264,6 +307,18 @@
   opacity: 0.65;
 }
 
+.ammunition-edit-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.ammunition-edit-actions button[type="button"] {
+  background: #fff;
+  color: #526174;
+}
+
 .ammunition-list-message {
   padding: 28px 20px;
   color: #64748b;
@@ -277,7 +332,7 @@
 
 .ammunition-table {
   width: 100%;
-  min-width: 760px;
+  min-width: 780px;
   border-collapse: collapse;
   text-align: left;
 }
@@ -317,6 +372,12 @@
 }
 
 .ammunition-item-price {
+  color: #334155 !important;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.ammunition-item-cost {
   color: #334155 !important;
   font-weight: 650;
   white-space: nowrap;
@@ -392,57 +453,23 @@
   background: #fef2f2;
 }
 
-.ammunition-add-stock {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.ammunition-add-stock input {
-  box-sizing: border-box;
-  width: 145px;
-  min-height: 37px;
-  border: 1px solid #dce3eb;
+.ammunition-set-cost-button {
+  min-height: 31px;
+  border: 1px solid #cbd5e1;
   border-radius: 7px;
-  padding: 8px 10px;
-  color: #172033;
-  font: inherit;
-  font-size: 12px;
-}
-
-.ammunition-add-stock input:focus {
-  border-color: #64748b;
-  outline: 3px solid rgba(100, 116, 139, 0.12);
-}
-
-.ammunition-add-stock button {
-  min-height: 37px;
-  border: 0;
-  border-radius: 7px;
-  padding: 8px 12px;
-  background: #172033;
-  color: #fff;
+  padding: 8px 11px;
+  background: #fff;
+  color: #334155;
   font: inherit;
   font-size: 11px;
-  font-weight: 700;
   cursor: pointer;
-  white-space: nowrap;
 }
 
-.ammunition-add-stock button:hover:not(:disabled) {
-  background: #334155;
+.ammunition-set-cost-button:hover:not(:disabled) {
+  background: #f1f5f9;
 }
 
-.ammunition-add-stock .ammunition-stock-out-button {
-  background: #b91c1c;
-}
-
-.ammunition-add-stock .ammunition-stock-out-button:hover:not(:disabled) {
-  background: #991b1b;
-}
-
-.ammunition-add-stock button:disabled,
-.ammunition-add-stock input:disabled {
+.ammunition-set-cost-button:disabled {
   cursor: wait;
   opacity: 0.65;
 }
@@ -480,12 +507,12 @@
   }
 
   .ammunition-rename-form {
-    flex-wrap: wrap;
+    grid-template-columns: 1fr;
     padding: 14px 16px;
   }
 
-  .ammunition-rename-form input {
-    width: 100%;
+  .ammunition-edit-actions {
+    grid-column: auto;
   }
 
   .ammunition-create-fields {
@@ -495,5 +522,237 @@
   .ammunition-table th,
   .ammunition-table td {
     padding: 12px;
+  }
+
+}
+
+/* CENTERED FORM MODAL */
+
+.ammunition-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.ammunition-modal-card {
+  width: 100%;
+  max-width: 600px;
+  max-height: 90dvh;
+  overflow-y: auto;
+  background: #ffffff;
+  padding: 24px;
+  border-radius: 14px;
+  box-sizing: border-box;
+  box-shadow: 0 15px 45px rgba(0, 0, 0, 0.2);
+}
+
+.ammunition-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  padding-bottom: 15px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.ammunition-modal-header h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.ammunition-modal-close {
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: #f1f5f9;
+  border-radius: 8px;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.ammunition-modal-close:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.ammunition-modal-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin: 0;
+}
+
+.ammunition-modal-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ammunition-modal-card input,
+.ammunition-modal-card select,
+.ammunition-modal-card textarea {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-sizing: border-box;
+  font: inherit;
+}
+
+.ammunition-stock-form {
+  padding: 0;
+}
+
+.ammunition-stock-form input,
+.ammunition-stock-form textarea {
+  color: #172033;
+}
+
+.ammunition-stock-form textarea {
+  min-height: 82px;
+  resize: vertical;
+}
+
+.ammunition-stock-form > button:not(.ammunition-set-cost-button) {
+  min-height: 38px;
+  border: 0;
+  border-radius: 7px;
+  padding: 9px 13px;
+  background: #172033;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ammunition-stock-form > button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.ammunition-cost-preview {
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
+}
+
+.ammunition-form-error {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 12px;
+}
+
+.ammunition-stock-cost-section,
+.ammunition-stock-out-section {
+  margin-top: 20px;
+  padding-top: 17px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.ammunition-stock-cost-section h3,
+.ammunition-stock-out-section h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 15px;
+}
+
+.ammunition-stock-cost-section > p,
+.ammunition-stock-out-section > p {
+  margin: 6px 0 14px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ammunition-movement-modal {
+  max-width: 900px;
+}
+
+.ammunition-stock-out-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.ammunition-stock-out-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #526174;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ammunition-stock-out-filters input {
+  min-width: 0;
+  color: #172033;
+}
+
+.ammunition-stock-out-filter-total {
+  margin: 0 0 12px;
+  color: #172033;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ammunition-movement-table-wrap {
+  overflow-x: auto;
+}
+
+.ammunition-movement-table {
+  width: 100%;
+  min-width: 660px;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.ammunition-movement-table th,
+.ammunition-movement-table td {
+  padding: 11px 10px;
+  border-bottom: 1px solid #edf1f5;
+  color: #475569;
+  font-size: 12px;
+  vertical-align: top;
+}
+
+.ammunition-movement-table th {
+  color: #64748b;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.ammunition-movement-table td small {
+  display: block;
+  margin-top: 4px;
+  color: #94a3b8;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .ammunition-modal-overlay {
+    padding: 12px;
+  }
+
+  .ammunition-modal-card {
+    padding: 18px;
+  }
+
+  .ammunition-modal-card .ammunition-create-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .ammunition-stock-out-filters {
+    grid-template-columns: 1fr;
   }
 }

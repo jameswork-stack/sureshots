@@ -5,7 +5,6 @@
   padding: 8px 0 40px;
   color: #172033;
 }
-
 .members-header {
   display: flex;
   align-items: center;
@@ -13,7 +12,6 @@
   gap: 24px;
   margin-bottom: 26px;
 }
-
 .members-eyebrow {
   margin: 0 0 7px;
   color: #64748b;
@@ -21,20 +19,17 @@
   font-weight: 800;
   letter-spacing: 0.13em;
 }
-
 .members-header h1 {
   margin: 0;
   color: #172033;
   font-size: 32px;
   letter-spacing: -0.04em;
 }
-
 .members-subtitle {
   margin: 7px 0 0;
   color: #64748b;
   font-size: 14px;
 }
-
 .members-add-button {
   display: inline-flex;
   align-items: center;
@@ -50,25 +45,21 @@
   cursor: pointer;
   transition: background 0.18s ease, transform 0.18s ease;
 }
-
 .members-add-button:hover {
   background: #ec489acb;
   transform: translateY(-1px);
 }
-
 .members-add-button span {
   font-size: 20px;
   font-weight: 400;
   line-height: 0.8;
 }
-
 .membership-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 22px;
 }
-
 .membership-summary-card {
   min-width: 0;
   padding: 19px 20px;
@@ -77,59 +68,49 @@
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.045);
 }
-
 .membership-regular {
   --tier-color: #64748b;
 }
-
 .membership-gold {
   --tier-color: #c28b16;
 }
-
 .membership-diamond {
   --tier-color: #397ba8;
 }
-
 .membership-summary-heading {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-
 .membership-summary-heading h2 {
   margin: 0;
   color: #334155;
   font-size: 14px;
   font-weight: 700;
 }
-
 .membership-tier-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--tier-color);
 }
-
 .membership-summary-count {
   margin: 14px 0 4px;
   color: #64748b;
   font-size: 12px;
 }
-
 .membership-summary-card > strong {
   display: block;
   color: #172033;
   font-size: 24px;
   letter-spacing: -0.03em;
 }
-
 .membership-summary-caption {
   display: block;
   margin-top: 5px;
   color: #94a3b8;
   font-size: 11px;
 }
-
 .members-list-panel {
   overflow: hidden;
   border: 1px solid #e2e8f0;
@@ -137,7 +118,6 @@
   background: rgba(255, 255, 255, 0.97);
   box-shadow: 0 5px 18px rgba(15, 23, 42, 0.05);
 }
-
 .members-list-header {
   display: flex;
   align-items: center;
@@ -146,7 +126,6 @@
   padding: 21px 22px;
   border-bottom: 1px solid #edf1f5;
 }
-
 .members-list-controls {
   display: flex;
   align-items: center;
@@ -154,28 +133,23 @@
   gap: 10px;
   width: min(620px, 60%);
 }
-
 .members-list-header h2 {
   margin: 0;
   color: #172033;
   font-size: 17px;
 }
-
 .members-list-header p {
   margin: 5px 0 0;
   color: #8491a3;
   font-size: 12px;
 }
-
 .members-filter {
   flex: 0 0 190px;
 }
-
 .members-search {
   flex: 1 1 auto;
   min-width: 0;
 }
-
 .members-search input,
 .members-filter select {
   box-sizing: border-box;
@@ -189,7 +163,6 @@
   font: inherit;
   font-size: 12px;
 }
-
 .members-search input:focus,
 .members-filter select:focus,
 .members-form-group input:focus,
@@ -197,18 +170,15 @@
   border-color: #64748b;
   outline: 3px solid rgba(100, 116, 139, 0.12);
 }
-
 .members-table-wrap {
   overflow-x: auto;
 }
-
 .members-table {
   width: 100%;
   min-width: 850px;
   border-collapse: collapse;
   text-align: left;
 }
-
 .members-table th {
   padding: 12px 16px;
   background: #f8fafc;
@@ -219,7 +189,6 @@
   text-transform: uppercase;
   white-space: nowrap;
 }
-
 .members-table td {
   padding: 14px 16px;
   border-top: 1px solid #edf1f5;
@@ -227,17 +196,14 @@
   font-size: 12px;
   white-space: nowrap;
 }
-
 .members-table tbody tr:hover {
   background: #fbfcfe;
 }
-
 .member-identity {
   display: flex;
   align-items: center;
   gap: 10px;
 }
-
 .member-initial {
   display: grid;
   width: 36px;
@@ -250,12 +216,10 @@
   font-size: 13px;
   font-weight: 800;
 }
-
 .member-identity strong,
 .member-identity small {
   display: block;
 }
-
 .member-identity strong {
   max-width: 190px;
   overflow: hidden;
@@ -263,13 +227,11 @@
   font-size: 12px;
   text-overflow: ellipsis;
 }
-
 .member-identity small {
   margin-top: 4px;
   color: #94a3b8;
   font-size: 10px;
 }
-
 .membership-badge {
   display: inline-flex;
   align-items: center;
@@ -278,31 +240,25 @@
   font-size: 10px;
   font-weight: 700;
 }
-
 .membership-badge-regular {
   background: #f1f5f9;
   color: #475569;
 }
-
 .membership-badge-gold {
   background: #fff6dc;
   color: #9a6b00;
 }
-
 .membership-badge-diamond {
   background: #e8f5fc;
   color: #21658f;
 }
-
 .member-price {
   color: #172033 !important;
   font-weight: 700;
 }
-
 .members-muted {
   color: #a0aaba;
 }
-
 .member-three-dot-btn {
   width: 35px;
   height: 35px;
@@ -315,12 +271,10 @@
   line-height: 20px;
   cursor: pointer;
 }
-
 .member-three-dot-btn:hover,
 .member-three-dot-btn[aria-expanded="true"] {
   background: #f3f4f6;
 }
-
 .member-action-menu {
   position: fixed;
   z-index: 99999;
@@ -332,7 +286,6 @@
   background: #fff;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.22);
 }
-
 .member-action-menu button {
   display: block;
   width: 100%;
@@ -345,32 +298,26 @@
   text-align: left;
   cursor: pointer;
 }
-
 .member-action-menu button:hover {
   background: #f3f4f6;
 }
-
 .member-action-menu button:focus-visible {
   position: relative;
   outline: 2px solid #2563eb;
   outline-offset: -2px;
 }
-
 .member-action-menu .member-menu-delete-item {
   border-top: 1px solid #e5e7eb;
   color: #b91c1c;
 }
-
 .member-action-menu .member-menu-delete-item:hover {
   background: #fef2f2;
 }
-
 .members-error {
   margin: 16px 22px;
   color: #b91c1c;
   font-size: 13px;
 }
-
 .members-message {
   display: flex;
   min-height: 150px;
@@ -383,12 +330,10 @@
   font-size: 13px;
   text-align: center;
 }
-
 .members-message strong {
   color: #334155;
   font-size: 15px;
 }
-
 .members-modal-overlay {
   position: fixed;
   z-index: 9999;
@@ -400,7 +345,6 @@
   padding: 20px;
   background: rgba(15, 23, 42, 0.54);
 }
-
 .members-modal {
   width: 100%;
   max-width: 660px;
@@ -412,7 +356,6 @@
   background: #fff;
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.25);
 }
-
 .members-modal-header {
   display: flex;
   align-items: flex-start;
@@ -420,20 +363,17 @@
   gap: 16px;
   margin-bottom: 23px;
 }
-
 .members-modal-header h2 {
   margin: 0;
   color: #172033;
   font-size: 22px;
   letter-spacing: -0.03em;
 }
-
 .members-modal-header > div > p:last-child {
   margin: 7px 0 0;
   color: #8491a3;
   font-size: 12px;
 }
-
 .members-modal-close {
   border: 0;
   padding: 0 3px;
@@ -443,13 +383,11 @@
   line-height: 1;
   cursor: pointer;
 }
-
 .members-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
-
 .members-form-group label {
   display: block;
   margin-bottom: 7px;
@@ -457,7 +395,6 @@
   font-size: 11px;
   font-weight: 700;
 }
-
 .members-form-group input,
 .members-form-group select {
   box-sizing: border-box;
@@ -471,20 +408,17 @@
   font: inherit;
   font-size: 12px;
 }
-
 .members-form-group input[readonly] {
   background: #f8fafc;
   color: #526174;
   font-weight: 700;
 }
-
 .members-form-group small {
   display: block;
   margin-top: 5px;
   color: #94a3b8;
   font-size: 10px;
 }
-
 .members-modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -493,7 +427,6 @@
   padding-top: 18px;
   border-top: 1px solid #edf1f5;
 }
-
 .members-modal-actions button {
   border: 0;
   border-radius: 8px;
@@ -502,26 +435,21 @@
   font-weight: 700;
   cursor: pointer;
 }
-
 .members-modal-actions button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
-
 .members-cancel-button {
   background: #f1f5f9;
   color: #475569;
 }
-
 .members-save-button {
   background: #172033;
   color: #fff;
 }
-
 .members-save-button:hover:not(:disabled) {
   background: #334155;
 }
-
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -531,25 +459,20 @@
   white-space: nowrap;
   clip-path: inset(50%);
 }
-
 .members-print-sheet {
   display: none;
 }
-
 @media print {
   @page {
     margin: 16mm;
   }
-
   body * {
     visibility: hidden !important;
   }
-
   .members-print-sheet,
   .members-print-sheet * {
     visibility: visible !important;
   }
-
   .members-print-sheet {
     position: absolute !important;
     inset: 0 auto auto 0;
@@ -561,13 +484,11 @@
     font-family: Arial, sans-serif;
     font-size: 11pt;
   }
-
   .members-print-header {
     margin-bottom: 24px;
     padding-bottom: 14px;
     border-bottom: 2px solid #1f2937;
   }
-
   .members-print-header p {
     margin: 0 0 6px;
     color: #6b7280;
@@ -575,30 +496,25 @@
     font-weight: 700;
     letter-spacing: 0.08em;
   }
-
   .members-print-header h1 {
     margin: 0;
     font-size: 22pt;
   }
-
   .members-print-section {
     break-inside: avoid;
   }
-
   .members-print-section h2 {
     margin: 0 0 16px;
     padding-bottom: 8px;
     border-bottom: 1px solid #d1d5db;
     font-size: 16pt;
   }
-
   .members-print-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 16px 24px;
     margin: 0;
   }
-
   .members-print-grid dt {
     margin-bottom: 4px;
     color: #6b7280;
@@ -606,83 +522,66 @@
     font-weight: 700;
     text-transform: uppercase;
   }
-
   .members-print-grid dd {
     margin: 0;
     font-size: 11pt;
   }
 }
-
 @media (max-width: 768px) {
   .members-page {
     padding-bottom: 25px;
   }
-
   .members-header {
     align-items: flex-start;
     flex-direction: column;
   }
-
   .members-add-button {
     width: 100%;
     justify-content: center;
   }
-
   .membership-summary {
     grid-template-columns: 1fr;
     gap: 10px;
   }
-
   .membership-summary-card {
     padding: 15px 17px;
   }
-
   .members-list-header {
     align-items: flex-start;
     flex-direction: column;
     padding: 17px;
   }
-
   .members-search {
     width: 100%;
   }
-
   .members-list-controls {
     align-items: stretch;
     flex-direction: column;
     width: 100%;
   }
-
   .members-filter {
     flex-basis: auto;
   }
 }
-
 @media (max-width: 520px) {
   .members-header h1 {
     font-size: 28px;
   }
-
   .members-modal {
     padding: 20px;
   }
-
   .members-form-grid {
     grid-template-columns: 1fr;
     gap: 13px;
   }
-
   .members-modal-actions {
     flex-direction: column-reverse;
   }
-
   .members-modal-actions button {
     width: 100%;
   }
 }
-
 /* Clickable membership cards */
-
 button.membership-summary-card {
   width: 100%;
   font: inherit;
@@ -691,28 +590,101 @@ button.membership-summary-card {
   text-align: left;
   transition: all 0.2s ease;
 }
-
 .membership-summary-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
-
 .membership-summary-card.membership-card-active {
   outline: 2px solid #2563eb;
   outline-offset: -2px;
   background-color: #eff6ff;
 }
-
 .membership-summary-card:focus-visible {
   outline: 2px solid #2563eb;
 }
-
 .membership-card-title {
   font-size: 18px;
   font-weight: 600;
 }
-
 button.membership-summary-card
 .membership-summary-count {
   display: block;
+}
+
+
+/* Responsive member management — preserve desktop layout */
+.members-page, .members-list-panel, .members-table-wrap,
+.members-modal-overlay, .members-modal, .membership-summary-card,
+.members-add-button, .member-action-menu {
+  box-sizing: border-box;
+}
+.members-page, .members-list-panel, .members-table-wrap {
+  min-width: 0;
+  max-width: 100%;
+}
+.members-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.members-modal {
+  min-width: 0;
+  max-height: min(92vh, calc(100% - 0px));
+  max-height: min(92dvh, 100%);
+  overscroll-behavior-y: contain;
+}
+.members-form-group, .members-list-controls, .members-header > div {
+  min-width: 0;
+}
+.member-action-menu {
+  max-width: calc(100vw - 16px);
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+}
+@media screen and (max-width: 768px) {
+  .members-page { padding: 8px 0 24px; }
+  .members-header { gap: 14px; margin-bottom: 18px; }
+  .members-header h1 { font-size: 26px; }
+  .members-subtitle { font-size: 13px; overflow-wrap: anywhere; }
+  .members-add-button { min-height: 44px; }
+  .membership-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .membership-summary-card { padding: 12px; }
+  .membership-summary-heading { gap: 5px; flex-wrap: wrap; }
+  .membership-summary-heading h2, .membership-card-title { font-size: 12px; overflow-wrap: anywhere; }
+  .membership-tier-dot { flex: 0 0 8px; }
+  .membership-summary-count { margin: 10px 0 4px; font-size: 11px; }
+  .membership-summary-card > strong { font-size: 22px; }
+  .membership-summary-caption { font-size: 10px; overflow-wrap: anywhere; }
+  .members-list-header { gap: 12px; padding: 14px; }
+  .members-list-controls, .members-search, .members-filter { width: 100%; min-width: 0; }
+  .members-search input, .members-filter select,
+  .members-form-group input, .members-form-group select { font-size: 16px; min-height: 44px; }
+  .members-table { min-width: 760px; }
+  .members-table th, .members-table td { padding: 12px 10px; }
+  .member-three-dot-btn { width: 44px; height: 44px; }
+  .member-action-menu button { min-height: 44px; }
+  .members-modal-overlay { padding: 12px; }
+  .members-modal { max-width: 100%; padding: 18px; }
+  .members-modal-header { gap: 10px; margin-bottom: 16px; }
+  .members-modal-header h2 { font-size: 20px; }
+  .members-modal-close { min-width: 44px; min-height: 44px; flex-shrink: 0; }
+  .members-modal-actions button { min-height: 44px; }
+  .members-error { margin: 12px 14px; overflow-wrap: anywhere; }
+}
+@media screen and (max-width: 520px) {
+  .membership-summary { gap: 6px; }
+  .membership-summary-card { padding: 10px 8px; }
+  .membership-summary-heading h2, .membership-card-title { font-size: 11px; }
+  .membership-summary-card > strong { font-size: 20px; }
+  .members-modal { padding: 15px; }
+  .members-form-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .members-modal-actions { flex-direction: row; gap: 8px; margin-top: 18px; }
+  .members-modal-actions button { flex: 1 1 0; min-width: 0; width: auto; padding: 10px 8px; }
+}
+@media screen and (max-width: 340px) {
+  .membership-summary { grid-template-columns: 1fr; }
+}
+@media (hover: none) {
+  .membership-summary-card:hover, .members-add-button:hover { transform: none; }
 }

@@ -1044,15 +1044,20 @@ const handleCompleteBooking = async (id) => {
         throw new Error("This booking is no longer active.");
       }
 
-      const inventoryStockOut = await adjustAmmunitionInventory(
+      const inventoryCosts = await adjustAmmunitionInventory(
         transaction,
         currentBooking,
-        currentBooking
+        currentBooking,
+        {
+          type: "booking",
+          reason: "Booking completed",
+          referenceId: id,
+        }
       );
       transaction.update(bookingRef, {
         status: "Completed",
         completedAt: serverTimestamp(),
-        inventoryStockOut,
+        ...inventoryCosts,
       });
     });
 

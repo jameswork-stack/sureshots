@@ -78,6 +78,7 @@ export default function SoldManagement() {
   const [soldItems, setSoldItems] = useState([]);
   const [showSales, setShowSales] = useState(false);
   const [productSearch, setProductSearch] = useState("");
+  const [productCategory, setProductCategory] = useState("");
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [productLoadError, setProductLoadError] = useState("");
@@ -322,11 +323,40 @@ export default function SoldManagement() {
       : 0;
   };
 
-  const filteredProducts = products.filter((product) => {
-    const term = productSearch.trim().toLowerCase();
-    return [product.productName, product.category, product.details, product.barcode]
-      .some((value) => String(value ?? "").toLowerCase().includes(term));
-  });
+  const getProductCategory = (product) =>
+  String(product.category || "").trim() || "Uncategorized";
+
+const productCategories = useMemo(() => {
+  return [...new Set(products.map(getProductCategory))]
+    .sort((a, b) => a.localeCompare(b));
+}, [products]);
+
+// Automatically select the first available category
+useEffect(() => {
+  setProductCategory((current) =>
+    productCategories.includes(current)
+      ? current
+      : productCategories[0] || ""
+  );
+}, [productCategories]);
+
+const filteredProducts = products.filter((product) => {
+  const term = productSearch.trim().toLowerCase();
+
+  const matchesCategory =
+    getProductCategory(product) === productCategory;
+
+  const matchesSearch = [
+    product.productName,
+    product.category,
+    product.details,
+    product.barcode,
+  ].some((value) =>
+    String(value ?? "").toLowerCase().includes(term)
+  );
+
+  return matchesCategory && matchesSearch;
+});
 
   const changeCartQuantity = (productId, delta) => {
     if (saving) return;
@@ -664,10 +694,15 @@ export default function SoldManagement() {
           discountAmount: nextDiscountAmount,
           totalAmount: nextSubtotalAmount - nextDiscountAmount,
         };
-        const inventoryStockOut = await adjustAmmunitionInventory(
+        const inventoryCosts = await adjustAmmunitionInventory(
           transaction,
           currentSale,
-          nextSaleData
+          nextSaleData,
+          {
+            type: "sale",
+            reason: editingSaleId ? "Sale edited" : "Items sold",
+            referenceId: saleRef.id,
+          }
         );
         Object.entries(productStockUpdates).forEach(([productId, update]) => {
           transaction.update(doc(db, "products", productId), {
@@ -675,7 +710,7 @@ export default function SoldManagement() {
             updatedAt: serverTimestamp(),
           });
         });
-        const savedSaleData = { ...nextSaleData, inventoryStockOut };
+        const savedSaleData = { ...nextSaleData, ...inventoryCosts };
 
         if (editingSaleId) {
           transaction.update(saleRef, savedSaleData);
@@ -765,7 +800,12 @@ export default function SoldManagement() {
         await adjustAmmunitionInventory(
           transaction,
           currentSale,
-          { ...currentSale, packageContents: [], packageItems: [] }
+          { ...currentSale, packageContents: [], packageItems: [] },
+          {
+            type: "sale",
+            reason: "Sale deleted",
+            referenceId: saleRef.id,
+          }
         );
         productStockUpdates.forEach(({ productId, stock }) => {
           transaction.update(doc(db, "products", productId), {
@@ -916,6 +956,30 @@ export default function SoldManagement() {
       <div className="sold-card-pos-layout">
         <section className="sold-catalog-panel">
           <h2>Products</h2>
+          <div className="sold-category-filter">
+  <label htmlFor="product-category">
+    Filter by Category
+  </label>
+
+  <select
+    id="product-category"
+    value={productCategory}
+    disabled={productsLoading || productCategories.length === 0}
+    onChange={(event) => {
+      setProductCategory(event.target.value);
+    }}
+  >
+    {productCategories.length === 0 && (
+      <option value="">No categories available</option>
+    )}
+
+    {productCategories.map((category) => (
+      <option key={category} value={category}>
+        {category}
+      </option>
+    ))}
+  </select>
+</div>
           <input type="search" className="sold-catalog-search"
             aria-label="Search products" placeholder="Search name, category or barcode..."
             value={productSearch} onChange={(event) => setProductSearch(event.target.value)} />
@@ -1289,6 +1353,14 @@ export default function SoldManagement() {
             <div className="sold-total">
               <span>Product COGS</span>
               <strong>{viewingSale.productCOGS == null ? "Not recorded" : formatCurrency(viewingSale.productCOGS)}</strong>
+            </div>
+            <div className="sold-total">
+              <span>Ammunition COGS</span>
+              <strong>
+                {viewingSale.ammunitionCOGS == null
+                  ? "Not recorded"
+                  : formatCurrency(viewingSale.ammunitionCOGS)}
+              </strong>
             </div>
             <div className="sold-total">
               <span>Total</span>

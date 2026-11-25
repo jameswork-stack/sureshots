@@ -66,6 +66,7 @@ export default function Dashboard() {
   const [presentMembers, setPresentMembers] = useState(0);
   const [totalSalesRevenue, setTotalSalesRevenue] = useState(0);
   const [totalRangeSales, setTotalRangeSales] = useState(0);
+  const [totalCOGS, setTotalCOGS] = useState(0);
   const [totalRangeFeeAvailed, setTotalRangeFeeAvailed] = useState(0);
   const [topPackages, setTopPackages] = useState([]);
   const [salesData, setSalesData] = useState([]);
@@ -75,6 +76,10 @@ export default function Dashboard() {
   const [dateTo, setDateTo] = useState(getTodayDate);
 
   const [loading, setLoading] = useState(true);
+
+  const totalNetSales = totalSalesRevenue + totalRangeSales;
+  const grossProfit =
+    Math.round((totalNetSales - totalCOGS) * 100) / 100;
 
   const fetchTopPackages = useCallback(async () => {
   try {
@@ -187,6 +192,7 @@ export default function Dashboard() {
       let salesRevenue = 0;
       let rangeSalesRevenue = 0;
       let rangeFeeQuantity = 0;
+      let bookingCOGS = 0;
 
       bookingsSnapshot.docs.forEach((doc) => {
         const booking = doc.data();
@@ -208,6 +214,10 @@ export default function Dashboard() {
         // Completed bookings
         if (booking.status === "Completed" && isInSelectedRange) {
           completedBookingCount++;
+          const ammunitionCOGS = Number(booking.ammunitionCOGS);
+          if (Number.isFinite(ammunitionCOGS) && ammunitionCOGS >= 0) {
+            bookingCOGS += ammunitionCOGS;
+          }
 
           const price = Number(booking.price) || 0;
 
@@ -338,42 +348,66 @@ export default function Dashboard() {
       setPresentMembers(selectedAttendance.length);
 
       const rangeSoldSnapshot = await getDocs(collection(db, "rangeSold"));
-      const rangeSoldRevenue = rangeSoldSnapshot.docs.reduce((total, soldDoc) => {
-        const sale = soldDoc.data();
-        const soldDate = getDateFromValue(sale.soldDate);
-        if (
-          (dateFrom || dateTo) &&
-          !isDateInSelectedRange(soldDate, dateFrom, dateTo)
-        ) {
-          return total;
-        }
+      const rangeSoldTotals = rangeSoldSnapshot.docs.reduce(
+        (totals, soldDoc) => {
+          const sale = soldDoc.data();
+          const soldDate = getDateFromValue(sale.soldDate);
+          if (
+            (dateFrom || dateTo) &&
+            !isDateInSelectedRange(soldDate, dateFrom, dateTo)
+          ) {
+            return totals;
+          }
 
-        if (sale.totalAmount != null && Number.isFinite(Number(sale.totalAmount))) {
-          return total + Number(sale.totalAmount);
-        }
+          let saleRevenue;
+          if (
+            sale.totalAmount != null &&
+            Number.isFinite(Number(sale.totalAmount))
+          ) {
+            saleRevenue = Number(sale.totalAmount);
+          } else {
+            const packageContents = Array.isArray(sale.packageContents)
+              ? sale.packageContents
+              : [];
+            saleRevenue = packageContents.reduce(
+              (contentsTotal, category) =>
+                contentsTotal +
+                (Array.isArray(category.items)
+                  ? category.items.reduce((itemsTotal, item) => {
+                      const unitPrice = Number(item.unitPrice);
+                      const quantity =
+                        item.quantity == null ? 1 : Number(item.quantity);
+                      return Number.isFinite(unitPrice) &&
+                        Number.isFinite(quantity) &&
+                        quantity >= 0
+                        ? itemsTotal + unitPrice * quantity
+                        : itemsTotal;
+                    }, 0)
+                  : 0),
+              0
+            );
+          }
+          const productCOGS = Number(sale.productCOGS);
+          const ammunitionCOGS = Number(sale.ammunitionCOGS);
 
-        const packageContents = Array.isArray(sale.packageContents)
-          ? sale.packageContents
-          : [];
-        return total + packageContents.reduce(
-          (contentsTotal, category) =>
-            contentsTotal +
-            (Array.isArray(category.items)
-              ? category.items.reduce((itemsTotal, item) => {
-                  const unitPrice = Number(item.unitPrice);
-                  const quantity =
-                    item.quantity == null ? 1 : Number(item.quantity);
-                  return Number.isFinite(unitPrice) &&
-                    Number.isFinite(quantity) &&
-                    quantity >= 0
-                    ? itemsTotal + unitPrice * quantity
-                    : itemsTotal;
-                }, 0)
-              : 0),
-          0
-        );
-      }, 0);
-      setTotalRangeSales(rangeSalesRevenue + rangeSoldRevenue);
+          return {
+            revenue: totals.revenue + saleRevenue,
+            cogs:
+              totals.cogs +
+              (Number.isFinite(productCOGS) && productCOGS >= 0
+                ? productCOGS
+                : 0) +
+              (Number.isFinite(ammunitionCOGS) && ammunitionCOGS >= 0
+                ? ammunitionCOGS
+                : 0),
+          };
+        },
+        { revenue: 0, cogs: 0 }
+      );
+      setTotalRangeSales(rangeSalesRevenue + rangeSoldTotals.revenue);
+      setTotalCOGS(
+        Math.round((bookingCOGS + rangeSoldTotals.cogs) * 100) / 100
+      );
 
     } catch (error) {
       console.error(
@@ -392,324 +426,34 @@ export default function Dashboard() {
 
   const fetchSalesGraph = useCallback(async () => {
     try {
-      const bookingsSnapshot = await getDocs(
-        collection(db, "bookings")
-      );
-
-      const completedBookings = bookingsSnapshot.docs
-        .map((doc) => doc.data())
-        .filter(
-          (booking) =>
-            booking.status === "Completed"
-        );
-
+      const snapshot = await getDocs(collection(db, "bookings"));
       const today = new Date();
-
-      if (dateFrom || dateTo) {
-        const completedDates = completedBookings
-          .map((booking) => getBookingDate(booking))
-          .filter(Boolean)
-          .sort((first, second) => first - second);
-        const startDate = dateFrom
-          ? getDateFromValue(dateFrom)
-          : completedDates[0] || today;
-        const endDate = dateTo
-          ? getDateFromValue(dateTo)
-          : today;
-
-        if (!startDate || !endDate || startDate > endDate) {
-          setSalesData([]);
-          return;
-        }
-
-        const rangeDays =
-          (Date.UTC(
-            endDate.getFullYear(),
-            endDate.getMonth(),
-            endDate.getDate()
-          ) -
-            Date.UTC(
-              startDate.getFullYear(),
-              startDate.getMonth(),
-              startDate.getDate()
-            )) /
-            86400000 +
-          1;
-        const usesDailyBuckets = rangeDays <= 31;
-        const buckets = [];
-
-        if (usesDailyBuckets) {
-          const date = new Date(startDate);
-          date.setHours(0, 0, 0, 0);
-
-          while (date <= endDate) {
-            buckets.push({
-              key: formatDateKey(date),
-              label: date.getDate().toString(),
-              dateLabel: date.toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-              }),
-              total: 0,
-            });
-            date.setDate(date.getDate() + 1);
-          }
-        } else {
-          const date = new Date(
-            startDate.getFullYear(),
-            startDate.getMonth(),
-            1
-          );
-
-          while (
-            date.getFullYear() < endDate.getFullYear() ||
-            (date.getFullYear() === endDate.getFullYear() &&
-              date.getMonth() <= endDate.getMonth())
-          ) {
-            buckets.push({
-              year: date.getFullYear(),
-              month: date.getMonth(),
-              label: date.toLocaleDateString("en-US", {
-                month: "short",
-              }),
-              dateLabel: date.toLocaleDateString("en-US", {
-                month: "long",
-                year: "numeric",
-              }),
-              total: 0,
-            });
-            date.setMonth(date.getMonth() + 1);
-          }
-        }
-
-        completedBookings.forEach((booking) => {
-          const bookingDate = getBookingDate(booking);
-          if (!isDateInSelectedRange(bookingDate, dateFrom, dateTo)) {
-            return;
-          }
-
-          const bucket = usesDailyBuckets
-            ? buckets.find(
-                (item) => item.key === formatDateKey(bookingDate)
-              )
-            : buckets.find(
-                (item) =>
-                  item.year === bookingDate.getFullYear() &&
-                  item.month === bookingDate.getMonth()
-              );
-
-          if (bucket) {
-            bucket.total += Number(booking.price) || 0;
-          }
-        });
-
-        setSalesData(buckets);
-        return;
-      }
-
-      // ==========================================
-      // LAST 7 DAYS
-      // ==========================================
-
-      if (salesFilter === "7days") {
-        const days = [];
-
-        for (let i = 6; i >= 0; i--) {
-          const date = new Date(today);
-
-          date.setHours(0, 0, 0, 0);
-          date.setDate(
-            today.getDate() - i
-          );
-
-          days.push({
-            key: formatDateKey(date),
-
-            label: date.toLocaleDateString(
-              "en-US",
-              {
-                weekday: "short",
-              }
-            ),
-
-            dateLabel:
-              date.toLocaleDateString(
-                "en-US",
-                {
-                  month: "short",
-                  day: "numeric",
-                }
-              ),
-
-            total: 0,
-          });
-        }
-
-        completedBookings.forEach(
-          (booking) => {
-            const bookingDate =
-              getBookingDate(booking);
-
-            if (!bookingDate) return;
-
-            const key =
-              formatDateKey(bookingDate);
-
-            const matchingDay =
-              days.find(
-                (day) => day.key === key
-              );
-
-            if (matchingDay) {
-              matchingDay.total +=
-                Number(booking.price) || 0;
-            }
-          }
-        );
-
-        setSalesData(days);
-      }
-
-
-      // ==========================================
-      // LAST 30 DAYS
-      // ==========================================
-
-      if (salesFilter === "30days") {
-        const days = [];
-
-        for (let i = 29; i >= 0; i--) {
-          const date = new Date(today);
-
-          date.setHours(0, 0, 0, 0);
-          date.setDate(
-            today.getDate() - i
-          );
-
-          days.push({
-            key: formatDateKey(date),
-
-            label:
-              date.getDate().toString(),
-
-            dateLabel:
-              date.toLocaleDateString(
-                "en-US",
-                {
-                  month: "short",
-                  day: "numeric",
-                }
-              ),
-
-            total: 0,
-          });
-        }
-
-        completedBookings.forEach(
-          (booking) => {
-            const bookingDate =
-              getBookingDate(booking);
-
-            if (!bookingDate) return;
-
-            const key =
-              formatDateKey(bookingDate);
-
-            const matchingDay =
-              days.find(
-                (day) => day.key === key
-              );
-
-            if (matchingDay) {
-              matchingDay.total +=
-                Number(booking.price) || 0;
-            }
-          }
-        );
-
-        setSalesData(days);
-      }
-
-
-      // ==========================================
-      // LAST 12 MONTHS
-      // ==========================================
-
-      if (salesFilter === "12months") {
-        const months = [];
-
-        for (let i = 11; i >= 0; i--) {
-          const date = new Date(
-            today.getFullYear(),
-            today.getMonth() - i,
-            1
-          );
-
-          months.push({
-            year: date.getFullYear(),
-
-            month: date.getMonth(),
-
-            label:
-              date.toLocaleDateString(
-                "en-US",
-                {
-                  month: "short",
-                }
-              ),
-
-            dateLabel:
-              date.toLocaleDateString(
-                "en-US",
-                {
-                  month: "long",
-                  year: "numeric",
-                }
-              ),
-
-            total: 0,
-          });
-        }
-
-        completedBookings.forEach(
-          (booking) => {
-            const bookingDate =
-              getBookingDate(booking);
-
-            if (!bookingDate) return;
-
-            const bookingYear =
-              bookingDate.getFullYear();
-
-            const bookingMonth =
-              bookingDate.getMonth();
-
-            const matchingMonth =
-              months.find(
-                (month) =>
-                  month.year ===
-                    bookingYear &&
-                  month.month ===
-                    bookingMonth
-              );
-
-            if (matchingMonth) {
-              matchingMonth.total +=
-                Number(booking.price) || 0;
-            }
-          }
-        );
-
-        setSalesData(months);
-      }
-
+      const numberOfDays = salesFilter === "today" ? 1 : 7;
+      const days = Array.from({ length: numberOfDays }, (_, index) => {
+        const date = new Date(today);
+        date.setHours(0, 0, 0, 0);
+        date.setDate(today.getDate() - (numberOfDays - 1 - index));
+        return {
+          key: formatDateKey(date),
+          label: salesFilter === "today" ? "Today" : date.toLocaleDateString("en-US", { weekday: "short" }),
+          dateLabel: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+          total: 0,
+        };
+      });
+      snapshot.docs.forEach((record) => {
+        const booking = record.data();
+        if (booking.status !== "Completed") return;
+        const date = getBookingDate(booking);
+        if (!date) return;
+        const day = days.find((entry) => entry.key === formatDateKey(date));
+        if (day) day.total += Number(booking.price) || 0;
+      });
+      setSalesData(days);
     } catch (error) {
-      console.error(
-        "Error loading sales graph:",
-        error
-      );
+      console.error("Error loading sales graph:", error);
+      setSalesData([]);
     }
-  }, [dateFrom, dateTo, salesFilter]);
+  }, [salesFilter]);
 
   useEffect(() => {
     fetchSalesGraph();
@@ -807,6 +551,45 @@ export default function Dashboard() {
       ========================================== */}
 
       <div className="dashboard-cards">
+
+  {/* Total Net Sales Revenue */}
+  <div className="dashboard-card net-sales-card">
+    <div className="dashboard-card-content">
+      <p>Total Net Sales (Revenue)</p>
+
+      <h2>
+        {loading
+          ? "..."
+          : formatCurrency(totalNetSales)}
+      </h2>
+
+      <span>Combined sales revenue</span>
+    </div>
+  </div>
+
+  <div className="dashboard-card cogs-card">
+    <div className="dashboard-card-content">
+      <p>Total COGS</p>
+
+      <h2>
+        {loading ? "..." : formatCurrency(totalCOGS)}
+      </h2>
+
+      <span>Recorded product and ammunition costs</span>
+    </div>
+  </div>
+
+  <div className="dashboard-card gross-profit-card">
+    <div className="dashboard-card-content">
+      <p>Total Gross Profit</p>
+
+      <h2>
+        {loading ? "..." : formatCurrency(grossProfit)}
+      </h2>
+
+      <span>Net sales minus recorded COGS</span>
+    </div>
+  </div>
 
         {/* Sales Revenue */}
 
@@ -1009,55 +792,16 @@ export default function Dashboard() {
 
           {/* Filter */}
 
-          {dateFrom || dateTo ? (
-            <span className="sales-custom-range">Custom date range</span>
-          ) : (
           <div className="sales-filter">
-
-            <button
-              className={
-                salesFilter === "7days"
-                  ? "active"
-                  : ""
-              }
-              aria-pressed={salesFilter === "7days"}
-              onClick={() =>
-                setSalesFilter("7days")
-              }
-            >
+            <button type="button" className={salesFilter === "today" ? "active" : ""}
+              aria-pressed={salesFilter === "today"} onClick={() => setSalesFilter("today")}>
+              Today
+            </button>
+            <button type="button" className={salesFilter === "7days" ? "active" : ""}
+              aria-pressed={salesFilter === "7days"} onClick={() => setSalesFilter("7days")}>
               Last 7 Days
             </button>
-
-            <button
-              className={
-                salesFilter === "30days"
-                  ? "active"
-                  : ""
-              }
-              aria-pressed={salesFilter === "30days"}
-              onClick={() =>
-                setSalesFilter("30days")
-              }
-            >
-              Last 30 Days
-            </button>
-
-            <button
-              className={
-                salesFilter === "12months"
-                  ? "active"
-                  : ""
-              }
-              aria-pressed={salesFilter === "12months"}
-              onClick={() =>
-                setSalesFilter("12months")
-              }
-            >
-              12 Months
-            </button>
-
           </div>
-          )}
 
         </div>
 
@@ -1066,13 +810,7 @@ export default function Dashboard() {
             CHART
         ========================================== */}
 
-        <div
-          className={
-            salesFilter === "30days"
-              ? "sales-chart-container chart-30-days"
-              : "sales-chart-container"
-          }
-        >
+        <div className="sales-chart-container">
 
           {/* Y Axis */}
 

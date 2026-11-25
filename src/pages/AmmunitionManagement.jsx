@@ -9,11 +9,11 @@ import {
   createAmmunitionItem,
   CUSTOM_AMMUNITION_UNITS,
   getAmmunitionInventoryId,
+  getAmmunitionMovements,
   getAmmunitionTypes,
   getAmmunitionUnitLabel,
   getTargetBoardItem,
   removeAmmunitionItem,
-  removeAmmunitionStock,
   syncLegacyAmmunitionNames,
   updateAmmunitionItem,
 } from "../utils/ammunitionInventory";
@@ -30,15 +30,46 @@ const EMPTY_AMMUNITION_ITEM = {
   unit: "piece",
   unitPrice: "",
   initialStock: "0",
+  initialStockCost: "0",
 };
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-PH", {
     style: "currency",
     currency: "PHP",
   }).format(Number(amount) || 0);
+const formatMovementDate = (timestamp) => {
+  if (typeof timestamp?.toDate === "function") {
+    return timestamp.toDate().toLocaleString("en-PH");
+  }
+  return "Date unavailable";
+};
+const getMovementDateKey = (timestamp) =>
+  typeof timestamp?.toDate === "function"
+    ? getLocalDateKey(timestamp.toDate())
+    : "";
+const getMovementLabel = (type) =>
+  ({
+    stock_in: "Stock added",
+    opening_cost: "Opening cost set",
+    cost_adjustment: "Cost updated",
+    manual_stock_out: "Manual stock out",
+    booking_out: "Booking usage",
+    booking_return: "Booking stock returned",
+    booking_cost_adjustment: "Booking cost adjusted",
+    sale_out: "Sale usage",
+    sale_return: "Sale stock returned",
+    sale_cost_adjustment: "Sale cost adjusted",
+  })[type] || type || "Inventory movement";
+const getStockOutActivityLabel = (type) =>
+  ({
+    booking_out: "Completed booking",
+    sale_out: "Sold",
+    manual_stock_out: "Manual stock out",
+  })[type] || getMovementLabel(type);
 
 export default function AmmunitionManagement() {
   const [stockLevels, setStockLevels] = useState({});
+  const [inventoryNamesById, setInventoryNamesById] = useState({});
   const [dailyStockOutByItem, setDailyStockOutByItem] = useState({});
   const [todayDate, setTodayDate] = useState(() => getLocalDateKey(new Date()));
   const [movementError, setMovementError] = useState("");
@@ -49,6 +80,9 @@ export default function AmmunitionManagement() {
     defaultTargetBoardItem
   );
   const [stockInputs, setStockInputs] = useState({});
+  const [stockPurchaseCosts, setStockPurchaseCosts] = useState({});
+  const [inventoryUnitCosts, setInventoryUnitCosts] = useState({});
+  const [inventoryStockValues, setInventoryStockValues] = useState({});
   const [loading, setLoading] = useState(true);
   const [savingName, setSavingName] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -62,8 +96,24 @@ export default function AmmunitionManagement() {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [menuPosition, setMenuPosition] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
+  const [stockItem, setStockItem] = useState(null);
+  const [viewingMovementsItem, setViewingMovementsItem] = useState(null);
+  const [stockMovements, setStockMovements] = useState([]);
+  const [movementLogLoading, setMovementLogLoading] = useState(false);
+  const [movementLogError, setMovementLogError] = useState("");
+  const [viewingStockOutMovements, setViewingStockOutMovements] =
+    useState(false);
+  const [stockOutMovements, setStockOutMovements] = useState([]);
+  const [stockOutMovementsLoading, setStockOutMovementsLoading] =
+    useState(false);
+  const [stockOutMovementsError, setStockOutMovementsError] = useState("");
+  const [stockOutFromDate, setStockOutFromDate] = useState("");
+  const [stockOutToDate, setStockOutToDate] = useState("");
   const [editingName, setEditingName] = useState("");
   const [editingPrice, setEditingPrice] = useState("");
+  const [editingStockCost, setEditingStockCost] = useState("");
+  const [editingStockOutAmount, setEditingStockOutAmount] = useState("");
+  const [stockOutReason, setStockOutReason] = useState("");
   const [itemActionLoading, setItemActionLoading] = useState(false);
   const inventoryItems = [
     ...builtInAmmunitionTypes,
@@ -75,6 +125,8 @@ export default function AmmunitionManagement() {
   );
   const startingStockUnit =
     newAmmunitionItem.unit === "piece" ? "pieces" : "rounds";
+  const startingStockCostUnit =
+    newAmmunitionItem.unit === "piece" ? "piece" : "round";
   const todayMovements = Object.values(dailyStockOutByItem).filter(
     (movement) => movement.date === todayDate && movement.quantity > 0
   );
@@ -82,6 +134,58 @@ export default function AmmunitionManagement() {
     (total, movement) => total + movement.quantity,
     0
   );
+  const validStockOutDateRange =
+    Boolean(stockOutFromDate) &&
+    Boolean(stockOutToDate) &&
+    stockOutFromDate <= stockOutToDate;
+  const filteredStockOutMovements = validStockOutDateRange
+    ? stockOutMovements.filter((movement) => {
+        const movementDate = getMovementDateKey(movement.createdAt);
+        return (
+          movementDate >= stockOutFromDate && movementDate <= stockOutToDate
+        );
+      })
+    : [];
+  const filteredStockOutTotal = filteredStockOutMovements.reduce(
+    (total, movement) => total + Math.abs(Number(movement.quantityChange)),
+    0
+  );
+  const stockItemInventoryName =
+    stockItem?.inventoryName || stockItem?.name || "";
+  const stockItemInventoryId = stockItem
+    ? getAmmunitionInventoryId(stockItemInventoryName)
+    : "";
+  const stockItemCurrentStock = stockLevels[stockItemInventoryId] || 0;
+  const stockItemUnitCost = inventoryUnitCosts[stockItemInventoryId];
+  const stockItemUnit = stockItem
+    ? getAmmunitionUnitLabel(
+        stockItem.name,
+        customAmmunitionTypes,
+        stockItemInventoryName
+      )
+    : "units";
+  const stockItemCostUnit = stockItemUnit.endsWith("s")
+    ? stockItemUnit.slice(0, -1)
+    : stockItemUnit;
+  const stockItemNeedsOpeningCost =
+    stockItemCurrentStock > 0 &&
+    (stockItemUnitCost == null || !Number.isFinite(stockItemUnitCost));
+  const editingInventoryName =
+    editingItem?.inventoryName || editingItem?.name || "";
+  const editingInventoryId = editingItem
+    ? getAmmunitionInventoryId(editingInventoryName)
+    : "";
+  const editingCurrentStock = stockLevels[editingInventoryId] || 0;
+  const editingStockUnit = editingItem
+    ? getAmmunitionUnitLabel(
+        editingItem.name,
+        customAmmunitionTypes,
+        editingInventoryName
+      )
+    : "units";
+  const editingCostUnit = editingStockUnit.endsWith("s")
+    ? editingStockUnit.slice(0, -1)
+    : editingStockUnit;
 
   useEffect(() => {
     let isCurrent = true;
@@ -107,6 +211,9 @@ export default function AmmunitionManagement() {
       collection(db, AMMUNITION_INVENTORY_COLLECTION),
       (snapshot) => {
         const records = {};
+        const inventoryNames = {};
+        const unitCosts = {};
+        const stockValues = {};
         const dailyMovements = {};
         const customItems = [];
         try {
@@ -119,6 +226,33 @@ export default function AmmunitionManagement() {
               );
             }
             records[inventoryDoc.id] = quantity;
+            const fallbackName = decodeURIComponent(inventoryDoc.id);
+            inventoryNames[inventoryDoc.id] = {
+              inventoryName: fallbackName,
+              name:
+                typeof data.name === "string" && data.name.trim()
+                  ? data.name.trim()
+                  : fallbackName,
+              unit: data.unit,
+            };
+            const unitCost = data.unitCost;
+            unitCosts[inventoryDoc.id] =
+              typeof unitCost === "number" &&
+              Number.isFinite(unitCost) &&
+              unitCost >= 0
+                ? unitCost
+                : null;
+            const stockValue = data.stockValue;
+            stockValues[inventoryDoc.id] =
+              typeof stockValue === "number" &&
+              Number.isFinite(stockValue) &&
+              stockValue >= 0
+                ? stockValue
+                : unitCosts[inventoryDoc.id] != null
+                  ? Math.round(
+                      quantity * unitCosts[inventoryDoc.id] * 100
+                    ) / 100
+                  : null;
             if (
               data.dailyStockOutDate != null ||
               data.dailyStockOutQuantity != null
@@ -163,6 +297,9 @@ export default function AmmunitionManagement() {
             first.name.localeCompare(second.name)
           );
           setStockLevels(records);
+          setInventoryNamesById(inventoryNames);
+          setInventoryUnitCosts(unitCosts);
+          setInventoryStockValues(stockValues);
           setDailyStockOutByItem(dailyMovements);
           setCustomAmmunitionTypes(customItems);
           setLoadError("");
@@ -234,7 +371,7 @@ export default function AmmunitionManagement() {
     }
 
     const buttonRect = event.currentTarget.getBoundingClientRect();
-    const menuHeight = 82;
+    const menuHeight = 182;
     setMenuPosition({
       top:
         buttonRect.bottom + menuHeight + 4 > window.innerHeight
@@ -250,6 +387,13 @@ export default function AmmunitionManagement() {
     setMenuPosition(null);
   };
 
+  const handleStartAddStock = (item) => {
+    closeMenu();
+    setError("");
+    setSuccess("");
+    setStockItem(item);
+  };
+
   const handleCreateItem = async (event) => {
     event.preventDefault();
     setError("");
@@ -258,6 +402,7 @@ export default function AmmunitionManagement() {
     const name = newAmmunitionItem.name.trim();
     const unitPrice = Number(newAmmunitionItem.unitPrice);
     const initialStock = Number(newAmmunitionItem.initialStock);
+    const initialStockCost = newAmmunitionItem.initialStockCost;
     if (
       inventoryItems.some(
         (item) => item.name.toLowerCase() === name.toLowerCase()
@@ -274,6 +419,7 @@ export default function AmmunitionManagement() {
         unit: newAmmunitionItem.unit,
         unitPrice,
         initialStock,
+        initialStockCost,
       });
       setNewAmmunitionItem(EMPTY_AMMUNITION_ITEM);
       setShowCreateForm(false);
@@ -292,23 +438,83 @@ export default function AmmunitionManagement() {
 
   const handleStartRename = (item) => {
     closeMenu();
+    const inventoryId = getAmmunitionInventoryId(
+      item.inventoryName || item.name
+    );
     setEditingItem(item);
     setEditingName(item.name);
     setEditingPrice(String(item.unitPrice ?? ""));
+    setEditingStockCost(
+      inventoryStockValues[inventoryId] == null
+        ? ""
+        : String(inventoryStockValues[inventoryId])
+    );
+    setEditingStockOutAmount("");
+    setStockOutReason("");
     setError("");
     setSuccess("");
   };
 
-  const handleRenameItem = async (event) => {
+  const handleSaveEdit = async (event) => {
     event.preventDefault();
     if (!editingItem) return;
 
     setError("");
     setSuccess("");
-    setItemActionLoading(true);
     const unitPrice = Number(editingPrice);
+    const stockOutAmount =
+      editingStockOutAmount === "" ? 0 : Number(editingStockOutAmount);
+    const stockOutReasonValue = stockOutReason.trim();
+    if (!Number.isInteger(stockOutAmount) || stockOutAmount < 0) {
+      setError("Enter a whole-number stock-out quantity of 0 or more.");
+      return;
+    }
+    if (stockOutAmount > editingCurrentStock) {
+      setError(
+        `Not enough stock. Available: ${editingCurrentStock}; requested: ${stockOutAmount}.`
+      );
+      return;
+    }
+    if (stockOutAmount > 0 && !stockOutReasonValue) {
+      setError("Enter a reason for the stock out.");
+      return;
+    }
+    if (
+      !editingItem.targetBoard &&
+      editingCurrentStock > 0 &&
+      editingStockCost === ""
+    ) {
+      setError("Enter the total cost of the current stock.");
+      return;
+    }
+
+    setItemActionLoading(true);
     try {
-      await updateAmmunitionItem(editingItem, editingName, editingPrice);
+      const updatedInventory = await updateAmmunitionItem(
+        editingItem,
+        editingName,
+        editingPrice,
+        {
+          stockValue: editingItem.targetBoard ? undefined : editingStockCost,
+          stockOutAmount,
+          stockOutReason: stockOutReasonValue,
+        }
+      );
+      const inventoryId = getAmmunitionInventoryId(
+        editingInventoryName
+      );
+      setStockLevels((current) => ({
+        ...current,
+        [inventoryId]: updatedInventory.quantity,
+      }));
+      setInventoryStockValues((current) => ({
+        ...current,
+        [inventoryId]: updatedInventory.stockValue,
+      }));
+      setInventoryUnitCosts((current) => ({
+        ...current,
+        [inventoryId]: updatedInventory.unitCost,
+      }));
       if (editingItem.targetBoard) {
         setTargetBoardItem((current) =>
           current
@@ -332,16 +538,23 @@ export default function AmmunitionManagement() {
           )
         );
       }
-      setSuccess(`Updated ${editingName.trim()}.`);
+      setSuccess(
+        stockOutAmount > 0
+          ? `Updated ${editingName.trim()} and recorded ${stockOutAmount} units stocked out.`
+          : `Updated ${editingName.trim()}.`
+      );
       setEditingItem(null);
       setEditingName("");
       setEditingPrice("");
-    } catch (renameError) {
-      console.error("Error renaming ammunition item:", renameError);
+      setEditingStockCost("");
+      setEditingStockOutAmount("");
+      setStockOutReason("");
+    } catch (saveError) {
+      console.error("Error updating ammunition item:", saveError);
       setError(
-        renameError instanceof Error
-          ? `Unable to rename ammunition item. ${renameError.message}`
-          : "Unable to rename ammunition item. Please try again."
+        saveError instanceof Error
+          ? `Unable to update ammunition item. ${saveError.message}`
+          : "Unable to update ammunition item. Please try again."
       );
     } finally {
       setItemActionLoading(false);
@@ -397,24 +610,48 @@ export default function AmmunitionManagement() {
     setSuccess("");
     const input = stockInputs[ammunitionName] || "";
     const amount = Number(input);
+    const purchaseCostInput = stockPurchaseCosts[inventoryName] || "";
+    const purchaseCost = Number(purchaseCostInput);
     if (!input.trim() || !Number.isInteger(amount) || amount < 1) {
       setError("Enter a whole-number stock quantity of at least 1.");
+      return;
+    }
+    if (
+      !purchaseCostInput.trim() ||
+      !Number.isFinite(purchaseCost) ||
+      purchaseCost < 0
+    ) {
+      setError("Enter the total purchase cost for the new stock.");
       return;
     }
 
     setSavingName(ammunitionName);
     try {
-      const updatedStock = await addAmmunitionStock(
+      const updatedInventory = await addAmmunitionStock(
         ammunitionName,
         amount,
+        purchaseCost,
         inventoryName
       );
       const inventoryId = getAmmunitionInventoryId(inventoryName);
       setStockLevels((current) => ({
         ...current,
-        [inventoryId]: updatedStock,
+        [inventoryId]: updatedInventory.quantity,
+      }));
+      setInventoryUnitCosts((current) => ({
+        ...current,
+        [inventoryId]: updatedInventory.unitCost,
+      }));
+      setInventoryStockValues((current) => ({
+        ...current,
+        [inventoryId]: updatedInventory.stockValue,
       }));
       setStockInputs((current) => ({ ...current, [ammunitionName]: "" }));
+      setStockPurchaseCosts((current) => ({
+        ...current,
+        [inventoryName]: "",
+      }));
+      setStockItem(null);
       setSuccess(
         `Added ${amount} ${getAmmunitionUnitLabel(
           ammunitionName,
@@ -434,48 +671,106 @@ export default function AmmunitionManagement() {
     }
   };
 
-  const handleStockOut = async (
-    ammunitionName,
-    inventoryName = ammunitionName
-  ) => {
-    setError("");
-    setSuccess("");
-    const input = stockInputs[ammunitionName] || "";
-    const amount = Number(input);
-    if (!input.trim() || !Number.isInteger(amount) || amount < 1) {
-      setError("Enter a whole-number stock-out quantity of at least 1.");
-      return;
-    }
-
-    setSavingName(ammunitionName);
+  const handleViewMovements = async (item) => {
+    closeMenu();
+    setViewingMovementsItem(item);
+    setStockMovements([]);
+    setMovementLogError("");
+    setMovementLogLoading(true);
     try {
-      const updatedStock = await removeAmmunitionStock(
-        ammunitionName,
-        amount,
-        inventoryName
+      const movements = await getAmmunitionMovements(
+        item.inventoryName || item.name
       );
-      const inventoryId = getAmmunitionInventoryId(inventoryName);
-      setStockLevels((current) => ({
-        ...current,
-        [inventoryId]: updatedStock,
-      }));
-      setStockInputs((current) => ({ ...current, [ammunitionName]: "" }));
-      setSuccess(
-        `Stocked out ${amount} ${getAmmunitionUnitLabel(
-          ammunitionName,
-          customAmmunitionTypes,
-          inventoryName
-        )} for ${ammunitionName}.`
-      );
-    } catch (stockOutError) {
-      console.error("Error stocking out ammunition:", stockOutError);
-      setError(
-        stockOutError instanceof Error
-          ? `Unable to stock out ammunition. ${stockOutError.message}`
-          : "Unable to stock out ammunition. Please try again."
+      setStockMovements(movements);
+    } catch (movementError) {
+      console.error("Error loading ammunition stock movements:", movementError);
+      setMovementLogError(
+        "Unable to load stock movements. Please try again."
       );
     } finally {
-      setSavingName("");
+      setMovementLogLoading(false);
+    }
+  };
+
+  const handleViewStockOutMovements = async () => {
+    const today = getLocalDateKey();
+    setStockOutFromDate(`${today.slice(0, 7)}-01`);
+    setStockOutToDate(today);
+    setViewingStockOutMovements(true);
+    setStockOutMovements([]);
+    setStockOutMovementsError("");
+    setStockOutMovementsLoading(true);
+    try {
+      const currentItemsById = new Map(
+        inventoryItems.map((item) => [
+          getAmmunitionInventoryId(item.inventoryName || item.name),
+          item,
+        ])
+      );
+      const targetBoardInventoryId = getAmmunitionInventoryId(
+        targetBoardItem?.inventoryName || "Target Board"
+      );
+      const movementSources = new Map();
+      Object.entries(inventoryNamesById).forEach(([inventoryId, source]) => {
+        if (inventoryId === targetBoardInventoryId) return;
+        const currentItem = currentItemsById.get(inventoryId);
+        movementSources.set(inventoryId, {
+          inventoryName: source.inventoryName,
+          ammunitionName: currentItem?.name || source.name,
+          unit: currentItem?.unit || source.unit,
+        });
+      });
+      inventoryItems.forEach((item) => {
+        if (item.targetBoard) return;
+        const inventoryName = item.inventoryName || item.name;
+        const inventoryId = getAmmunitionInventoryId(inventoryName);
+        if (!movementSources.has(inventoryId)) {
+          movementSources.set(inventoryId, {
+            inventoryName,
+            ammunitionName: item.name,
+            unit: item.unit,
+          });
+        }
+      });
+
+      const itemMovements = await Promise.all(
+        [...movementSources.entries()].map(
+          async ([inventoryId, source]) => {
+            const movements = await getAmmunitionMovements(
+              source.inventoryName
+            );
+            return movements
+              .filter(
+                (movement) =>
+                  Number(movement.quantityChange) < 0 &&
+                  getMovementDateKey(movement.createdAt)
+              )
+              .map((movement) => ({
+                ...movement,
+                ammunitionName: source.ammunitionName,
+                inventoryName: source.inventoryName,
+                ammunitionUnit: source.unit,
+                key: `${inventoryId}-${movement.id}`,
+              }));
+          }
+        )
+      );
+      setStockOutMovements(
+        itemMovements
+          .flat()
+          .sort(
+            (first, second) =>
+              (second.createdAt?.toMillis?.() || 0) -
+              (first.createdAt?.toMillis?.() || 0)
+          )
+      );
+    } catch (movementError) {
+      console.error("Error loading ammunition stock-out movements:", movementError);
+      setStockOutMovementsError(
+        "Unable to load stock-out movements. Please try again."
+      );
+    } finally {
+      setStockOutMovementsLoading(false);
     }
   };
 
@@ -495,9 +790,23 @@ export default function AmmunitionManagement() {
             <button
               type="button"
               role="menuitem"
+              onClick={() => handleStartAddStock(selectedMenuItem)}
+            >
+              Add stock
+            </button>
+            <button
+              type="button"
+              role="menuitem"
               onClick={() => handleStartRename(selectedMenuItem)}
             >
               Edit
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleViewMovements(selectedMenuItem)}
+            >
+              View log
             </button>
             <button
               className="ammunition-row-menu-remove"
@@ -516,9 +825,9 @@ export default function AmmunitionManagement() {
           <p className="ammunition-management-eyebrow">INVENTORY MANAGEMENT</p>
           <h1>Ammunition &amp; Target Board Management</h1>
           <p>
-          Add or stock out ammunition and target boards. Stock is also
-          deducted automatically when bookings are completed or items are
-          sold.
+          Enter each stock purchase's total cost to calculate weighted-average
+          cost per round or piece. COGS is recorded automatically when bookings
+          are completed or ammunition is sold.
           </p>
         </div>
       </header>
@@ -538,36 +847,45 @@ export default function AmmunitionManagement() {
         className="ammunition-daily-summary"
         aria-label="Today's ammunition stock-out"
       >
-        <div>
-          <p className="ammunition-daily-summary-eyebrow">
-            {new Date(`${todayDate}T00:00:00`).toLocaleDateString("en-PH", {
-              month: "long",
-              day: "numeric",
-              year: "numeric",
-            })}
-          </p>
-          <h2>Total ammunition units out</h2>
-          <p className="ammunition-daily-summary-caption">
-            Today's total resets automatically tomorrow.
-          </p>
-        </div>
-        <div className="ammunition-daily-summary-total" aria-live="polite">
-          <strong>
-            {loading
-              ? "..."
-              : movementError
-                ? "—"
-                : dailyStockOutTotal.toLocaleString()}
-          </strong>
-          <span>
-            {movementError ||
-              `${dailyStockOutTotal === 1 ? "unit" : "units"} out | ${
-                todayMovements.length
-              } ammunition ${
-                todayMovements.length === 1 ? "type" : "types"
-              } moved`}
-          </span>
-        </div>
+        <button
+          type="button"
+          className="ammunition-daily-summary-trigger"
+          onClick={handleViewStockOutMovements}
+          disabled={loading || stockOutMovementsLoading}
+          aria-label="View today's ammunition stock-out movements"
+        >
+          <div>
+            <p className="ammunition-daily-summary-eyebrow">
+              {new Date(`${todayDate}T00:00:00`).toLocaleDateString("en-PH", {
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </p>
+            <h2>Total ammunition units out</h2>
+            <p className="ammunition-daily-summary-caption">
+              Click to view stock-out history; date filter defaults to this
+              month.
+            </p>
+          </div>
+          <div className="ammunition-daily-summary-total" aria-live="polite">
+            <strong>
+              {loading
+                ? "..."
+                : movementError
+                  ? "—"
+                  : dailyStockOutTotal.toLocaleString()}
+            </strong>
+            <span>
+              {movementError ||
+                `${dailyStockOutTotal === 1 ? "unit" : "units"} out | ${
+                  todayMovements.length
+                } ammunition ${
+                  todayMovements.length === 1 ? "type" : "types"
+                } moved`}
+            </span>
+          </div>
+        </button>
       </section>
 
       <section className="ammunition-inventory-panel">
@@ -597,12 +915,36 @@ export default function AmmunitionManagement() {
           </div>
         </div>
 
-        {showCreateForm && (
-          <form
-            id="create-ammunition-form"
-            className="ammunition-create-form"
-            onSubmit={handleCreateItem}
-          >
+        {showCreateForm && createPortal(
+  <div className="ammunition-modal-overlay">
+    <section
+      className="ammunition-modal-card"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Add ammunition item"
+    >
+      <div className="ammunition-modal-header">
+        <h2>Add Ammunition Item</h2>
+
+        <button
+          type="button"
+          className="ammunition-modal-close"
+          disabled={creating}
+          onClick={() => {
+            setShowCreateForm(false);
+            setError("");
+          }}
+          aria-label="Close form"
+        >
+          ×
+        </button>
+      </div>
+
+      <form
+        id="create-ammunition-form"
+        className="ammunition-create-form"
+        onSubmit={handleCreateItem}
+      >
             <div className="ammunition-create-fields">
               <label>
                 Item name
@@ -669,6 +1011,37 @@ export default function AmmunitionManagement() {
                   required
                 />
               </label>
+              <label>
+                Total cost of starting stock (₱)
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={newAmmunitionItem.initialStockCost}
+                  onChange={(event) =>
+                    setNewAmmunitionItem((current) => ({
+                      ...current,
+                      initialStockCost: event.target.value,
+                    }))
+                  }
+                  required
+                />
+              </label>
+              <label>
+                Cost per {startingStockCostUnit} (automatic)
+                <input
+                  type="text"
+                  readOnly
+                  value={
+                    Number(newAmmunitionItem.initialStock) > 0
+                      ? formatCurrency(
+                          Number(newAmmunitionItem.initialStockCost) /
+                            Number(newAmmunitionItem.initialStock)
+                        )
+                      : "—"
+                  }
+                />
+              </label>
             </div>
             <div className="ammunition-create-actions">
               <button
@@ -687,54 +1060,498 @@ export default function AmmunitionManagement() {
                 {creating ? "Creating..." : "Create item"}
               </button>
             </div>
-          </form>
+                </form>
+    </section>
+  </div>,
+  document.body
+)}
+
+        {stockItem && createPortal(
+          <div className="ammunition-modal-overlay">
+            <section
+              className="ammunition-modal-card"
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Add stock for ${stockItem.name}`}
+            >
+              <div className="ammunition-modal-header">
+                <h2>Add stock — {stockItem.name}</h2>
+                <button
+                  type="button"
+                  className="ammunition-modal-close"
+                  disabled={Boolean(savingName)}
+                  onClick={() => setStockItem(null)}
+                  aria-label="Close form"
+                >
+                  ×
+                </button>
+              </div>
+              <form
+                className="ammunition-stock-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  handleAddStock(stockItem.name, stockItemInventoryName);
+                }}
+              >
+                <label htmlFor="add-stock-quantity">
+                  Quantity to add ({stockItemUnit})
+                  <input
+                    id="add-stock-quantity"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={stockInputs[stockItem.name] || ""}
+                    onChange={(event) =>
+                      setStockInputs((current) => ({
+                        ...current,
+                        [stockItem.name]: event.target.value,
+                      }))
+                    }
+                    required
+                    disabled={Boolean(savingName)}
+                  />
+                </label>
+                <label htmlFor="add-stock-purchase-cost">
+                  Total purchase cost (₱)
+                  <input
+                    id="add-stock-purchase-cost"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={stockPurchaseCosts[stockItemInventoryName] || ""}
+                    onChange={(event) =>
+                      setStockPurchaseCosts((current) => ({
+                        ...current,
+                        [stockItemInventoryName]: event.target.value,
+                      }))
+                    }
+                    required
+                    disabled={Boolean(savingName)}
+                  />
+                </label>
+                {stockItemNeedsOpeningCost && (
+                  <p className="ammunition-form-error" role="alert">
+                    Set the current stock cost in Edit before adding stock.
+                  </p>
+                )}
+                {!stockItemNeedsOpeningCost &&
+                  Number(stockInputs[stockItem.name]) > 0 &&
+                  stockPurchaseCosts[stockItemInventoryName] !== "" &&
+                  stockPurchaseCosts[stockItemInventoryName] != null &&
+                  Number.isFinite(
+                    Number(stockPurchaseCosts[stockItemInventoryName])
+                  ) && (
+                    <p className="ammunition-cost-preview">
+                      Estimated average cost:{" "}
+                      {formatCurrency(
+                        (stockItemCurrentStock *
+                          (stockItemUnitCost || 0) +
+                          Number(stockPurchaseCosts[stockItemInventoryName])) /
+                          (stockItemCurrentStock +
+                            Number(stockInputs[stockItem.name]))
+                      )}{" "}
+                      / {stockItemCostUnit}
+                    </p>
+                  )}
+                {error && (
+                  <p className="ammunition-form-error" role="alert">
+                    {error}
+                  </p>
+                )}
+                <div className="ammunition-create-actions">
+                  <button
+                    className="ammunition-create-cancel"
+                    type="button"
+                    onClick={() => setStockItem(null)}
+                    disabled={Boolean(savingName)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={
+                      Boolean(savingName) || stockItemNeedsOpeningCost
+                    }
+                  >
+                    {savingName === stockItem.name ? "Saving..." : "Add stock"}
+                  </button>
+                </div>
+              </form>
+            </section>
+          </div>,
+          document.body
         )}
 
-        {editingItem && (
-          <form
-            className="ammunition-rename-form"
-            onSubmit={handleRenameItem}
-          >
-            <label htmlFor="rename-ammunition-item">
-              Item name
-              <input
-                id="rename-ammunition-item"
-                type="text"
-                value={editingName}
-                onChange={(event) => setEditingName(event.target.value)}
-                maxLength="100"
-                required
-                disabled={itemActionLoading}
-                autoFocus
-              />
-            </label>
-            <label htmlFor="edit-ammunition-price">
-              Price per {editingItem.unit}
-              <input
-                id="edit-ammunition-price"
-                type="number"
-                min="0"
-                step="0.01"
-                value={editingPrice}
-                onChange={(event) => setEditingPrice(event.target.value)}
-                required
-                disabled={itemActionLoading}
-              />
-            </label>
-            <button
-              type="button"
-              onClick={() => {
-                setEditingItem(null);
-                setEditingPrice("");
-              }}
-              disabled={itemActionLoading}
+        {editingItem &&
+          createPortal(
+            <div className="ammunition-modal-overlay">
+              <section
+                className="ammunition-modal-card"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Edit ammunition item"
+              >
+                <div className="ammunition-modal-header">
+                  <h2>Edit {editingItem.name}</h2>
+                  <button
+                    type="button"
+                    className="ammunition-modal-close"
+                    disabled={itemActionLoading}
+                    onClick={() => setEditingItem(null)}
+                    aria-label="Close form"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <form
+                  className="ammunition-rename-form"
+                  onSubmit={handleSaveEdit}
+                >
+                  <label htmlFor="rename-ammunition-item">
+                    Item name
+                    <input
+                      id="rename-ammunition-item"
+                      type="text"
+                      value={editingName}
+                      onChange={(event) =>
+                        setEditingName(event.target.value)
+                      }
+                      maxLength="100"
+                      required
+                      disabled={itemActionLoading}
+                      autoFocus
+                    />
+                  </label>
+                  <label htmlFor="edit-ammunition-price">
+                    Price per {editingItem.unit}
+                    <input
+                      id="edit-ammunition-price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editingPrice}
+                      onChange={(event) =>
+                        setEditingPrice(event.target.value)
+                      }
+                      required
+                      disabled={itemActionLoading}
+                    />
+                  </label>
+                  {!editingItem.targetBoard && editingCurrentStock > 0 && (
+                    <>
+                      <label htmlFor="edit-current-stock-cost">
+                        Total cost of current stock (₱)
+                        <input
+                          id="edit-current-stock-cost"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={editingStockCost}
+                          onChange={(event) =>
+                            setEditingStockCost(event.target.value)
+                          }
+                          required
+                          disabled={itemActionLoading}
+                        />
+                      </label>
+                      <p className="ammunition-cost-preview">
+                        Cost per {editingCostUnit}:{" "}
+                        {editingStockCost === "" ||
+                        !Number.isFinite(Number(editingStockCost))
+                          ? "—"
+                          : formatCurrency(
+                              Number(editingStockCost) / editingCurrentStock
+                            )}
+                      </p>
+                    </>
+                  )}
+                  {!editingItem.targetBoard && editingCurrentStock === 0 && (
+                    <p className="ammunition-cost-preview">
+                      No current stock to value. Enter the purchase cost when
+                      adding stock.
+                    </p>
+                  )}
+                  <label htmlFor="edit-stock-out-quantity">
+                    Stock-out quantity ({editingStockUnit}; current stock:{" "}
+                    {editingCurrentStock})
+                    <input
+                      id="edit-stock-out-quantity"
+                      type="number"
+                      min="0"
+                      max={editingCurrentStock}
+                      step="1"
+                      value={editingStockOutAmount}
+                      onChange={(event) =>
+                        setEditingStockOutAmount(event.target.value)
+                      }
+                      disabled={itemActionLoading}
+                    />
+                  </label>
+                  <label htmlFor="edit-stock-out-reason">
+                    Stock-out reason
+                    <textarea
+                      id="edit-stock-out-reason"
+                      value={stockOutReason}
+                      onChange={(event) =>
+                        setStockOutReason(event.target.value)
+                      }
+                      maxLength={300}
+                      required={Number(editingStockOutAmount) > 0}
+                      disabled={itemActionLoading}
+                    />
+                  </label>
+                  {error && (
+                    <p className="ammunition-form-error" role="alert">
+                      {error}
+                    </p>
+                  )}
+                  {success && (
+                    <p className="ammunition-success" role="status">
+                      {success}
+                    </p>
+                  )}
+                  <div className="ammunition-edit-actions">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingItem(null);
+                        setEditingPrice("");
+                      }}
+                      disabled={itemActionLoading}
+                    >
+                      Cancel
+                    </button>
+                    <button type="submit" disabled={itemActionLoading}>
+                      {itemActionLoading ? "Saving..." : "Save"}
+                    </button>
+                  </div>
+                </form>
+              </section>
+            </div>,
+            document.body
+          )}
+
+        {viewingStockOutMovements &&
+          createPortal(
+            <div className="ammunition-modal-overlay">
+              <section
+                className="ammunition-modal-card ammunition-movement-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Ammunition stock-out movements"
+              >
+                <div className="ammunition-modal-header">
+                  <h2>Ammunition stock-out movements</h2>
+                  <button
+                    type="button"
+                    className="ammunition-modal-close"
+                    onClick={() => setViewingStockOutMovements(false)}
+                    disabled={stockOutMovementsLoading}
+                    aria-label="Close stock-out movements"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="ammunition-stock-out-filters">
+                  <label htmlFor="stock-out-from-date">
+                    From
+                    <input
+                      id="stock-out-from-date"
+                      type="date"
+                      value={stockOutFromDate}
+                      max={stockOutToDate || undefined}
+                      onChange={(event) =>
+                        setStockOutFromDate(event.target.value)
+                      }
+                    />
+                  </label>
+                  <label htmlFor="stock-out-to-date">
+                    To
+                    <input
+                      id="stock-out-to-date"
+                      type="date"
+                      value={stockOutToDate}
+                      min={stockOutFromDate || undefined}
+                      onChange={(event) =>
+                        setStockOutToDate(event.target.value)
+                      }
+                    />
+                  </label>
+                </div>
+                {!validStockOutDateRange ? (
+                  <p className="ammunition-list-message" role="alert">
+                    Select a valid date range with the start date on or before
+                    the end date.
+                  </p>
+                ) : stockOutMovementsLoading ? (
+                  <p className="ammunition-list-message" role="status">
+                    Loading stock-out movements...
+                  </p>
+                ) : stockOutMovementsError ? (
+                  <p className="ammunition-list-message" role="alert">
+                    {stockOutMovementsError}
+                  </p>
+                ) : (
+                  <>
+                    <p className="ammunition-stock-out-filter-total">
+                      {filteredStockOutTotal.toLocaleString()} ammunition{" "}
+                      {filteredStockOutTotal === 1 ? "unit" : "units"} out in
+                      the selected date range
+                    </p>
+                    {filteredStockOutMovements.length === 0 ? (
+                      <p className="ammunition-list-message">
+                        No stock-out movements found in this date range.
+                      </p>
+                    ) : (
+                      <div className="ammunition-movement-table-wrap">
+                        <table className="ammunition-movement-table">
+                          <thead>
+                            <tr>
+                              <th>Date</th>
+                              <th>Ammunition</th>
+                              <th>Activity</th>
+                              <th>Quantity out</th>
+                              <th>Reason / reference</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredStockOutMovements.map((movement) => (
+                              <tr key={movement.key}>
+                                <td>
+                                  {formatMovementDate(movement.createdAt)}
+                                </td>
+                                <td>{movement.ammunitionName}</td>
+                                <td>
+                                  {getStockOutActivityLabel(movement.type)}
+                                </td>
+                                <td>
+                                  {Math.abs(
+                                    Number(movement.quantityChange)
+                                  )}{" "}
+                                  {getAmmunitionUnitLabel(
+                                    movement.ammunitionName,
+                                    movement.ammunitionUnit
+                                      ? [
+                                          ...customAmmunitionTypes,
+                                          {
+                                            name: movement.ammunitionName,
+                                            unit: movement.ammunitionUnit,
+                                          },
+                                        ]
+                                      : customAmmunitionTypes,
+                                    movement.inventoryName
+                                  )}
+                                </td>
+                                <td>
+                                  {movement.reason || "—"}
+                                  {movement.referenceId && (
+                                    <small>
+                                      Ref: {movement.referenceId}
+                                    </small>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                )}
+              </section>
+            </div>,
+            document.body
+          )}
+
+        {viewingMovementsItem && createPortal(
+          <div className="ammunition-modal-overlay">
+            <section
+              className="ammunition-modal-card ammunition-movement-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Stock movements for ${viewingMovementsItem.name}`}
             >
-              Cancel
-            </button>
-            <button type="submit" disabled={itemActionLoading}>
-              {itemActionLoading ? "Saving..." : "Save changes"}
-            </button>
-          </form>
+              <div className="ammunition-modal-header">
+                <h2>Stock log — {viewingMovementsItem.name}</h2>
+                <button
+                  type="button"
+                  className="ammunition-modal-close"
+                  onClick={() => setViewingMovementsItem(null)}
+                  aria-label="Close stock log"
+                >
+                  ×
+                </button>
+              </div>
+              {movementLogLoading ? (
+                <p className="ammunition-list-message" role="status">
+                  Loading stock movements...
+                </p>
+              ) : movementLogError ? (
+                <p className="ammunition-form-error" role="alert">
+                  {movementLogError}
+                </p>
+              ) : stockMovements.length === 0 ? (
+                <p className="ammunition-list-message">
+                  No stock movements recorded yet.
+                </p>
+              ) : (
+                <div className="ammunition-movement-table-wrap">
+                  <table className="ammunition-movement-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Movement</th>
+                        <th>Quantity</th>
+                        <th>Cost / COGS</th>
+                        <th>Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stockMovements.map((movement) => {
+                        const quantityChange =
+                          Number(movement.quantityChange) || 0;
+                        const quantityLabel =
+                          quantityChange > 0
+                            ? `+${quantityChange}`
+                            : quantityChange;
+                        const cost =
+                          movement.totalCost ?? movement.cogsChange;
+                        return (
+                          <tr key={movement.id}>
+                            <td>{formatMovementDate(movement.createdAt)}</td>
+                            <td>{getMovementLabel(movement.type)}</td>
+                            <td>
+                              {quantityChange === 0
+                                ? "—"
+                                : `${quantityLabel} ${getAmmunitionUnitLabel(
+                                    viewingMovementsItem.name,
+                                    customAmmunitionTypes,
+                                    viewingMovementsItem.inventoryName ||
+                                      viewingMovementsItem.name
+                                  )}`}
+                            </td>
+                            <td>
+                              {cost == null ? "—" : formatCurrency(cost)}
+                            </td>
+                            <td>
+                              {movement.reason || "—"}
+                              {movement.referenceId && (
+                                <small>
+                                  Ref: {movement.referenceId}
+                                </small>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </div>,
+          document.body
         )}
 
         {loading ? (
@@ -753,7 +1570,7 @@ export default function AmmunitionManagement() {
                   <th>Inventory item</th>
                   <th>Price</th>
                   <th>In stock</th>
-                  <th>Stock actions</th>
+                  <th>Avg. cost / unit</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -766,7 +1583,11 @@ export default function AmmunitionManagement() {
                     customAmmunitionTypes,
                     inventoryName
                   );
-                  const isSaving = savingName === item.name;
+                  const costUnit = unit.endsWith("s")
+                    ? unit.slice(0, -1)
+                    : unit;
+                  const currentStock = stockLevels[inventoryId] || 0;
+                  const currentUnitCost = inventoryUnitCosts[inventoryId];
                   return (
                     <tr key={item.name}>
                       <td>
@@ -776,53 +1597,13 @@ export default function AmmunitionManagement() {
                         {formatCurrency(item.unitPrice)} / {item.unit}
                       </td>
                       <td className="ammunition-stock-level">
-                        {stockLevels[inventoryId] || 0} {unit}
+                        {currentStock} {unit}
                       </td>
-                      <td>
-                        <div className="ammunition-add-stock">
-                          <label
-                            className="visually-hidden"
-                            htmlFor={`stock-${inventoryId}`}
-                          >
-                            Quantity of {unit} to add or stock out for {item.name}
-                          </label>
-                          <input
-                            id={`stock-${inventoryId}`}
-                            type="number"
-                            min="1"
-                            step="1"
-                            inputMode="numeric"
-                            value={stockInputs[item.name] || ""}
-                            onChange={(event) => {
-                              const { value } = event.target;
-                              setStockInputs((current) => ({
-                                ...current,
-                                [item.name]: value,
-                              }));
-                            }}
-                            placeholder={`Qty in ${unit}`}
-                            disabled={Boolean(savingName)}
-                          />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleAddStock(item.name, inventoryName)
-                            }
-                            disabled={Boolean(savingName)}
-                          >
-                            {isSaving ? "Saving..." : "Add stock"}
-                          </button>
-                          <button
-                            className="ammunition-stock-out-button"
-                            type="button"
-                            onClick={() =>
-                              handleStockOut(item.name, inventoryName)
-                            }
-                            disabled={Boolean(savingName)}
-                          >
-                            {isSaving ? "Saving..." : "Stock out"}
-                          </button>
-                        </div>
+                      <td className="ammunition-item-cost">
+                        {currentUnitCost == null ||
+                        !Number.isFinite(currentUnitCost)
+                          ? "Not set"
+                          : `${formatCurrency(currentUnitCost)} / ${costUnit}`}
                       </td>
                       <td>
                         {(item.builtIn || item.custom || item.targetBoard) && (

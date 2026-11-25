@@ -1206,7 +1206,7 @@
 }
 
 .dashboard-cards {
-  grid-template-columns: repeat(8, minmax(280px, 1fr));
+  grid-template-columns: repeat(9, minmax(280px, 1fr));
   overflow-x: auto;
   gap: 16px;
   padding: 4px 4px 14px;
@@ -1255,4 +1255,50 @@
 .dashboard-card-link:focus-visible {
   outline: 3px solid #9b5875;
   outline-offset: 3px;
+}
+
+/* ==========================================
+   NET SALES, COGS AND GROSS PROFIT CARDS
+========================================== */
+
+.net-sales-card,
+.cogs-card,
+.gross-profit-card {
+  background: linear-gradient(145deg, #ffffff 55%, #f8fbff);
+  border: 1px solid var(--dashboard-border);
+  color: var(--dashboard-ink);
+}
+
+/* CARD LABEL */
+
+.net-sales-card .dashboard-card-content p,
+.cogs-card .dashboard-card-content p,
+.gross-profit-card .dashboard-card-content p {
+  color: var(--dashboard-muted);
+}
+
+/* CARD AMOUNT */
+
+.net-sales-card .dashboard-card-content h2,
+.cogs-card .dashboard-card-content h2,
+.gross-profit-card .dashboard-card-content h2 {
+  color: var(--dashboard-ink);
+  font-size: clamp(20px, 1.6vw, 28px);
+  font-weight: 700;
+}
+
+/* CARD DESCRIPTION */
+
+.net-sales-card .dashboard-card-content span,
+.cogs-card .dashboard-card-content span,
+.gross-profit-card .dashboard-card-content span {
+  color: #94a3b8;
+}
+
+/* DECORATIVE CIRCLE */
+
+.net-sales-card::after,
+.cogs-card::after,
+.gross-profit-card::after {
+  background: rgba(147, 197, 253, 0.2);
 }
