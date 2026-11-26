@@ -334,9 +334,7 @@ const productCategories = useMemo(() => {
 // Automatically select the first available category
 useEffect(() => {
   setProductCategory((current) =>
-    productCategories.includes(current)
-      ? current
-      : productCategories[0] || ""
+    productCategories.includes(current) ? current : ""
   );
 }, [productCategories]);
 
@@ -967,11 +965,10 @@ const filteredProducts = products.filter((product) => {
     disabled={productsLoading || productCategories.length === 0}
     onChange={(event) => {
       setProductCategory(event.target.value);
+      setProductSearch("");
     }}
   >
-    {productCategories.length === 0 && (
-      <option value="">No categories available</option>
-    )}
+    <option value="">Select Category</option>
 
     {productCategories.map((category) => (
       <option key={category} value={category}>
@@ -980,12 +977,27 @@ const filteredProducts = products.filter((product) => {
     ))}
   </select>
 </div>
-          <input type="search" className="sold-catalog-search"
-            aria-label="Search products" placeholder="Search name, category or barcode..."
-            value={productSearch} onChange={(event) => setProductSearch(event.target.value)} />
+          <input
+  type="search"
+  className="sold-catalog-search"
+  aria-label="Search products"
+  placeholder="Search name, category or barcode..."
+  value={productSearch}
+  disabled={!productCategory}
+  onChange={(event) =>
+    setProductSearch(event.target.value)
+  }
+/>
           {productLoadError && <p role="alert">{productLoadError}</p>}
           {productsLoading ? <p>Loading products...</p> : !productLoadError && (
-            filteredProducts.length === 0 ? <p>No matching products.</p> :
+            !productCategory ? (
+  <div className="sold-category-empty">
+    <h3>Select a Category</h3>
+    <p>Please select a category to display products.</p>
+  </div>
+) : filteredProducts.length === 0 ? (
+  <p>No matching products.</p>
+) :
             <div className="sold-catalog-grid">
               {filteredProducts.map((product) => {
                 const available = getAvailableProductStock(product.id);

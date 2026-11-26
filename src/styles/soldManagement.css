@@ -653,3 +653,34 @@
     font-size: 16px;
   }
 }
+
+.sold-category-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  padding: 25px;
+  text-align: center;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+}
+
+.sold-category-empty h3 {
+  margin: 0 0 8px;
+  color: #334155;
+  font-size: 16px;
+}
+
+.sold-category-empty p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.sold-catalog-search:disabled {
+  background: #f1f5f9;
+  opacity: 0.7;
+  cursor: not-allowed;
+}
