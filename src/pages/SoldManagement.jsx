@@ -105,6 +105,9 @@ export default function SoldManagement() {
       (item) => item.name === "Target Board"
     )
   );
+  const visibleRangePackageCategories = Object.keys(RANGE_PACKAGE_CATALOG).filter(
+    (category) => category !== AMMUNITION_CATEGORY
+  );
   const rangePackageCatalog = useMemo(
     () => ({
       ...RANGE_PACKAGE_CATALOG,
@@ -289,7 +292,7 @@ export default function SoldManagement() {
   const packageContents = useMemo(
     () =>
       getRangePackageContents(
-        categories,
+        categories.filter((category) => category !== AMMUNITION_CATEGORY),
         selectedItems,
         quantities,
         otherItem,
@@ -438,7 +441,9 @@ const filteredProducts = products.filter((product) => {
     setDiscountPercentage(
       sale.discountPercentage ? String(sale.discountPercentage) : ""
     );
-    setCategories(existingCategories);
+    setCategories(
+      existingCategories.filter((category) => category !== AMMUNITION_CATEGORY)
+    );
     setSelectedItems(nextSelectedItems);
     setQuantities(nextQuantities);
     setProductLines(existingProductLines);
@@ -1094,7 +1099,7 @@ const filteredProducts = products.filter((product) => {
                 <p>Select a category and the items sold.</p>
               </div>
               <div className="range-package-category-options">
-                {Object.keys(RANGE_PACKAGE_CATALOG).map((category) => (
+                {visibleRangePackageCategories.map((category) => (
                   <label
                     className={`range-package-category-option ${
                       categories.includes(category) ? "selected" : ""
