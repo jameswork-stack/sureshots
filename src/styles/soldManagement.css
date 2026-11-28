@@ -604,9 +604,17 @@
 .sold-cart-row { display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:12px 0; border-bottom:1px solid #e2e8f0; }
 .sold-cart-row > div:first-child { flex:1; min-width:100px; overflow-wrap:anywhere; }
 .sold-cart-row small { display:block; color:#64748b; margin-top:5px; }
-.sold-cart-controls { display:flex; align-items:center; gap:9px; }
-.sold-cart-controls button { width:30px; height:30px; background:#fff; border:1px solid #cbd5e1; border-radius:6px; cursor:pointer; font-size:18px; }
-.sold-cart-controls button:disabled { opacity:.4; cursor:not-allowed; }
+.sold-cart-quantity { display:grid; min-width:90px; gap:4px; color:#475569; font-size:11px; }
+.sold-cart-quantity span { color:#64748b; font-size:10px; }
+.sold-cart-quantity input { box-sizing:border-box; width:86px; min-height:32px; border:1px solid #cbd5e1; border-radius:6px; padding:6px 8px; font:inherit; }
+.sold-cart-discount { display:grid; min-width:90px; gap:4px; color:#475569; font-size:11px; }
+.sold-cart-discount input { box-sizing:border-box; width:86px; min-height:32px; border:1px solid #cbd5e1; border-radius:6px; padding:6px 8px; font:inherit; }
+.sold-cart-line-total { display:grid; min-width:100px; gap:3px; text-align:right; }
+.sold-cart-line-total small { color:#64748b; font-size:11px; }
+.sold-cart-line-total strong { color:#1f2937; }
+.sold-item-discount { display:block; margin-top:4px; color:#b45309; font-size:11px; }
+.sold-management-page .range-package-category-content li.sold-corkage-item { flex-wrap:wrap; }
+.sold-management-page .sold-corkage-line-total { flex:0 0 100%; margin:0; color:#334155; font-size:12px; font-weight:650; text-align:right; }
 .sold-cart-remove { border:0; background:transparent; color:#b91c1c; cursor:pointer; font-size:12px; }
 .sold-card-pos-layout .sold-save-button { background:#15803d; color:#fff; }
 @media(max-width:900px) { .sold-card-pos-layout { grid-template-columns:1fr; } }

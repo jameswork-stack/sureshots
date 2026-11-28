@@ -30,7 +30,7 @@ const EMPTY_AMMUNITION_ITEM = {
   unit: "piece",
   unitPrice: "",
   initialStock: "0",
-  initialStockCost: "0",
+  initialStockUnitCost: "0",
 };
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-PH", {
@@ -97,6 +97,7 @@ export default function AmmunitionManagement() {
   const [menuPosition, setMenuPosition] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
   const [stockItem, setStockItem] = useState(null);
+  const [viewingItem, setViewingItem] = useState(null);
   const [viewingMovementsItem, setViewingMovementsItem] = useState(null);
   const [stockMovements, setStockMovements] = useState([]);
   const [movementLogLoading, setMovementLogLoading] = useState(false);
@@ -111,7 +112,7 @@ export default function AmmunitionManagement() {
   const [stockOutToDate, setStockOutToDate] = useState("");
   const [editingName, setEditingName] = useState("");
   const [editingPrice, setEditingPrice] = useState("");
-  const [editingStockCost, setEditingStockCost] = useState("");
+  const [editingStockUnitCost, setEditingStockUnitCost] = useState("");
   const [editingStockOutAmount, setEditingStockOutAmount] = useState("");
   const [stockOutReason, setStockOutReason] = useState("");
   const [itemActionLoading, setItemActionLoading] = useState(false);
@@ -124,9 +125,12 @@ export default function AmmunitionManagement() {
     (item) => getAmmunitionInventoryId(item.inventoryName || item.name) === openMenuId
   );
   const startingStockUnit =
-    newAmmunitionItem.unit === "piece" ? "pieces" : "rounds";
-  const startingStockCostUnit =
-    newAmmunitionItem.unit === "piece" ? "piece" : "round";
+    newAmmunitionItem.unit === "piece"
+      ? "pieces"
+      : newAmmunitionItem.unit === "round"
+        ? "rounds"
+        : "boxes of 50";
+  const startingStockCostUnit = newAmmunitionItem.unit;
   const todayMovements = Object.values(dailyStockOutByItem).filter(
     (movement) => movement.date === todayDate && movement.quantity > 0
   );
@@ -170,6 +174,24 @@ export default function AmmunitionManagement() {
   const stockItemNeedsOpeningCost =
     stockItemCurrentStock > 0 &&
     (stockItemUnitCost == null || !Number.isFinite(stockItemUnitCost));
+  const viewingItemInventoryName =
+    viewingItem?.inventoryName || viewingItem?.name || "";
+  const viewingItemInventoryId = viewingItem
+    ? getAmmunitionInventoryId(viewingItemInventoryName)
+    : "";
+  const viewingItemStock = stockLevels[viewingItemInventoryId] || 0;
+  const viewingItemUnitCost = inventoryUnitCosts[viewingItemInventoryId];
+  const viewingItemStockValue = inventoryStockValues[viewingItemInventoryId];
+  const viewingItemUnit = viewingItem
+    ? getAmmunitionUnitLabel(
+        viewingItem.name,
+        customAmmunitionTypes,
+        viewingItemInventoryName
+      )
+    : "units";
+  const viewingItemCostUnit = viewingItemUnit.endsWith("s")
+    ? viewingItemUnit.slice(0, -1)
+    : viewingItemUnit;
   const editingInventoryName =
     editingItem?.inventoryName || editingItem?.name || "";
   const editingInventoryId = editingItem
@@ -371,7 +393,7 @@ export default function AmmunitionManagement() {
     }
 
     const buttonRect = event.currentTarget.getBoundingClientRect();
-    const menuHeight = 182;
+    const menuHeight = 220;
     setMenuPosition({
       top:
         buttonRect.bottom + menuHeight + 4 > window.innerHeight
@@ -394,6 +416,11 @@ export default function AmmunitionManagement() {
     setStockItem(item);
   };
 
+  const handleViewItem = (item) => {
+    closeMenu();
+    setViewingItem(item);
+  };
+
   const handleCreateItem = async (event) => {
     event.preventDefault();
     setError("");
@@ -402,7 +429,22 @@ export default function AmmunitionManagement() {
     const name = newAmmunitionItem.name.trim();
     const unitPrice = Number(newAmmunitionItem.unitPrice);
     const initialStock = Number(newAmmunitionItem.initialStock);
-    const initialStockCost = newAmmunitionItem.initialStockCost;
+    const initialStockUnitCost = Number(
+      newAmmunitionItem.initialStockUnitCost
+    );
+    if (
+      newAmmunitionItem.initialStockUnitCost === "" ||
+      !Number.isFinite(initialStockUnitCost) ||
+      initialStockUnitCost < 0
+    ) {
+      setError("Enter a valid cost per unit of 0 or more.");
+      return;
+    }
+    const initialStockCost = initialStock * initialStockUnitCost;
+    if (!Number.isFinite(initialStockCost)) {
+      setError("The total starting stock cost is too large.");
+      return;
+    }
     if (
       inventoryItems.some(
         (item) => item.name.toLowerCase() === name.toLowerCase()
@@ -444,10 +486,15 @@ export default function AmmunitionManagement() {
     setEditingItem(item);
     setEditingName(item.name);
     setEditingPrice(String(item.unitPrice ?? ""));
-    setEditingStockCost(
-      inventoryStockValues[inventoryId] == null
-        ? ""
-        : String(inventoryStockValues[inventoryId])
+    const currentStock = stockLevels[inventoryId] || 0;
+    const unitCost = inventoryUnitCosts[inventoryId];
+    const stockValue = inventoryStockValues[inventoryId];
+    setEditingStockUnitCost(
+      unitCost != null
+        ? String(unitCost)
+        : currentStock > 0 && stockValue != null
+          ? String(stockValue / currentStock)
+          : ""
     );
     setEditingStockOutAmount("");
     setStockOutReason("");
@@ -479,12 +526,26 @@ export default function AmmunitionManagement() {
       setError("Enter a reason for the stock out.");
       return;
     }
+    const numericStockUnitCost = Number(editingStockUnitCost);
     if (
       !editingItem.targetBoard &&
       editingCurrentStock > 0 &&
-      editingStockCost === ""
+      (editingStockUnitCost === "" ||
+        !Number.isFinite(numericStockUnitCost) ||
+        numericStockUnitCost < 0)
     ) {
-      setError("Enter the total cost of the current stock.");
+      setError("Enter a valid cost per unit for the current stock.");
+      return;
+    }
+    const currentStockValue =
+      editingCurrentStock > 0
+        ? editingCurrentStock * numericStockUnitCost
+        : undefined;
+    if (
+      currentStockValue != null &&
+      !Number.isFinite(currentStockValue)
+    ) {
+      setError("The total cost of current stock is too large.");
       return;
     }
 
@@ -495,7 +556,9 @@ export default function AmmunitionManagement() {
         editingName,
         editingPrice,
         {
-          stockValue: editingItem.targetBoard ? undefined : editingStockCost,
+          stockValue: editingItem.targetBoard
+            ? undefined
+            : currentStockValue,
           stockOutAmount,
           stockOutReason: stockOutReasonValue,
         }
@@ -790,6 +853,13 @@ export default function AmmunitionManagement() {
             <button
               type="button"
               role="menuitem"
+              onClick={() => handleViewItem(selectedMenuItem)}
+            >
+              View
+            </button>
+            <button
+              type="button"
+              role="menuitem"
               onClick={() => handleStartAddStock(selectedMenuItem)}
             >
               Add stock
@@ -816,6 +886,77 @@ export default function AmmunitionManagement() {
             >
               Remove
             </button>
+          </div>,
+          document.body
+        )}
+
+      {viewingItem &&
+        createPortal(
+          <div className="ammunition-modal-overlay">
+            <section
+              className="ammunition-modal-card"
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Details for ${viewingItem.name}`}
+            >
+              <div className="ammunition-modal-header">
+                <h2>{viewingItem.name}</h2>
+                <button
+                  type="button"
+                  className="ammunition-modal-close"
+                  onClick={() => setViewingItem(null)}
+                  aria-label="Close details"
+                >
+                  ×
+                </button>
+              </div>
+              <dl className="ammunition-item-details">
+                <div>
+                  <dt>Item type</dt>
+                  <dd>
+                    {viewingItem.targetBoard
+                      ? "Target board"
+                      : viewingItem.custom
+                        ? "Custom ammunition"
+                        : "Ammunition"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Unit</dt>
+                  <dd>{viewingItemUnit}</dd>
+                </div>
+                <div>
+                  <dt>Price</dt>
+                  <dd>
+                    {formatCurrency(viewingItem.unitPrice)} /{" "}
+                    {viewingItem.unit || viewingItemCostUnit}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Current stock</dt>
+                  <dd>
+                    {viewingItemStock} {viewingItemUnit}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Total stock cost</dt>
+                  <dd>
+                    {viewingItemStockValue == null
+                      ? "Not set"
+                      : formatCurrency(viewingItemStockValue)}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Average cost per {viewingItemCostUnit}</dt>
+                  <dd>
+                    {viewingItemUnitCost == null ||
+                    !Number.isFinite(viewingItemUnitCost)
+                      ? "Not set"
+                      : formatCurrency(viewingItemUnitCost)}
+                  </dd>
+                </div>
+              </dl>
+            </section>
           </div>,
           document.body
         )}
@@ -1012,36 +1153,28 @@ export default function AmmunitionManagement() {
                 />
               </label>
               <label>
-                Total cost of starting stock (₱)
+                Cost per {startingStockCostUnit} (₱)
                 <input
                   type="number"
                   min="0"
-                  step="0.01"
-                  value={newAmmunitionItem.initialStockCost}
+                  step="any"
+                  value={newAmmunitionItem.initialStockUnitCost}
                   onChange={(event) =>
                     setNewAmmunitionItem((current) => ({
                       ...current,
-                      initialStockCost: event.target.value,
+                      initialStockUnitCost: event.target.value,
                     }))
                   }
                   required
                 />
               </label>
-              <label>
-                Cost per {startingStockCostUnit} (automatic)
-                <input
-                  type="text"
-                  readOnly
-                  value={
-                    Number(newAmmunitionItem.initialStock) > 0
-                      ? formatCurrency(
-                          Number(newAmmunitionItem.initialStockCost) /
-                            Number(newAmmunitionItem.initialStock)
-                        )
-                      : "—"
-                  }
-                />
-              </label>
+              <p className="ammunition-create-total">
+                Total cost of starting stock:{" "}
+                {formatCurrency(
+                  Number(newAmmunitionItem.initialStock) *
+                    Number(newAmmunitionItem.initialStockUnitCost)
+                )}
+              </p>
             </div>
             <div className="ammunition-create-actions">
               <button
@@ -1240,28 +1373,30 @@ export default function AmmunitionManagement() {
                   </label>
                   {!editingItem.targetBoard && editingCurrentStock > 0 && (
                     <>
-                      <label htmlFor="edit-current-stock-cost">
-                        Total cost of current stock (₱)
+                      <label htmlFor="edit-current-stock-unit-cost">
+                        Cost per {editingCostUnit} (₱)
                         <input
-                          id="edit-current-stock-cost"
+                          id="edit-current-stock-unit-cost"
                           type="number"
                           min="0"
-                          step="0.01"
-                          value={editingStockCost}
+                          step="any"
+                          value={editingStockUnitCost}
                           onChange={(event) =>
-                            setEditingStockCost(event.target.value)
+                            setEditingStockUnitCost(event.target.value)
                           }
                           required
                           disabled={itemActionLoading}
                         />
                       </label>
                       <p className="ammunition-cost-preview">
-                        Cost per {editingCostUnit}:{" "}
-                        {editingStockCost === "" ||
-                        !Number.isFinite(Number(editingStockCost))
+                        Total cost of current stock:{" "}
+                        {editingStockUnitCost === "" ||
+                        !Number.isFinite(Number(editingStockUnitCost)) ||
+                        Number(editingStockUnitCost) < 0
                           ? "—"
                           : formatCurrency(
-                              Number(editingStockCost) / editingCurrentStock
+                              editingCurrentStock *
+                                Number(editingStockUnitCost)
                             )}
                       </p>
                     </>

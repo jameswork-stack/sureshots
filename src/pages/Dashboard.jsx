@@ -52,6 +52,13 @@ const isDateInSelectedRange = (date, dateFrom, dateTo) => {
     (!dateTo || dateKey <= dateTo);
 };
 
+const isAmmunitionCorkageItem = (category, item) =>
+  [category, item.name, item.inventoryName].some(
+    (value) =>
+      typeof value === "string" &&
+      value.toLowerCase().includes("ammunition corkage")
+  );
+
 const getCardDetailsUrl = (metric, dateFrom, dateTo) => {
   const searchParams = new URLSearchParams();
   if (dateFrom) searchParams.set("from", dateFrom);
@@ -257,7 +264,9 @@ export default function Dashboard() {
                   quantity >= 0
                 ) {
                   const itemRevenue = unitPrice * quantity;
-                  if (category.category === "Range Fee Rates" && item.name === "Range Fee") {
+                  if (isAmmunitionCorkageItem(category.category, item)) {
+                    rangeSalesRevenue += itemRevenue;
+                  } else if (category.category === "Range Fee Rates" && item.name === "Range Fee") {
                     salesRevenue += itemRevenue;
                   } else if (
                     category.category === "Range Fee Rates" &&
@@ -296,7 +305,9 @@ export default function Dashboard() {
                 quantity >= 0
               ) {
                 const itemRevenue = unitPrice * quantity;
-                if (item.category === "Range Fee Rates" && item.name === "Range Fee") {
+                if (isAmmunitionCorkageItem(item.category, item)) {
+                  rangeSalesRevenue += itemRevenue;
+                } else if (item.category === "Range Fee Rates" && item.name === "Range Fee") {
                   salesRevenue += itemRevenue;
                 } else if (
                   item.category === "Range Fee Rates" &&
@@ -614,7 +625,7 @@ export default function Dashboard() {
             </h2>
 
             <span>
-              Completed bookings, including Range Fee and Target Board sales
+              Completed bookings, including Range Fee and Target Board sales; excludes Ammunition Corkage Fee
             </span>
 
           </div>

@@ -41,6 +41,11 @@ const formatCurrency = (amount) =>
   }).format(amount);
 
 const emptyOtherItem = { details: "", price: "" };
+const getEditableRangePackageItemName = (category, name) =>
+  category === "Ammunition Corkage" &&
+  name === "101+ rounds (₱1,000 flat)"
+    ? "101+ rounds (₱1,000 per fee)"
+    : name;
 
 const getProductQuantities = (sale) =>
   (Array.isArray(sale?.productItems) ? sale.productItems : []).reduce(
@@ -61,6 +66,33 @@ const getProductItemsTotal = (items) =>
       ? total + price * quantity
       : total;
   }, 0);
+
+const getProductItemDiscountAmount = (item) => {
+  const savedAmount = Number(item.discountAmount);
+  if (
+    item.discountAmount != null &&
+    Number.isFinite(savedAmount) &&
+    savedAmount >= 0
+  ) {
+    return savedAmount;
+  }
+  const rate = Number(item.discountPercentage);
+  const subtotal = Number(item.unitPrice) * Number(item.quantity);
+  return Number.isFinite(subtotal) &&
+    subtotal >= 0 &&
+    Number.isFinite(rate) &&
+    rate >= 0 &&
+    rate <= 100
+    ? (subtotal * rate) / 100
+    : 0;
+};
+
+const getProductItemTotal = (item) => {
+  const subtotal = Number(item.unitPrice) * Number(item.quantity);
+  return Number.isFinite(subtotal)
+    ? subtotal - getProductItemDiscountAmount(item)
+    : 0;
+};
 
 const fetchProducts = async () => {
   const snapshot = await getDocs(collection(db, "products"));
@@ -93,7 +125,7 @@ export default function SoldManagement() {
   const [soldDate, setSoldDate] = useState(getTodayDate);
   const [soldTo, setSoldTo] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
-  const [discountPercentage, setDiscountPercentage] = useState("");
+  const [legacyDiscountPercentage, setLegacyDiscountPercentage] = useState(0);
   const [categories, setCategories] = useState([]);
   const [selectedItems, setSelectedItems] = useState({});
   const [quantities, setQuantities] = useState({});
@@ -308,12 +340,28 @@ export default function SoldManagement() {
       ? total + Number(product.price) * quantity
       : total;
   }, 0);
+  const legacyDiscountRate = Number(legacyDiscountPercentage) || 0;
+  const productDiscountAmount = productLines.reduce((total, line) => {
+    const product = products.find((item) => item.id === line.productId);
+    const quantity = Number(line.quantity);
+    const rate =
+      line.discountPercentage === "" || line.discountPercentage == null
+        ? 0
+        : Number(line.discountPercentage);
+    return (
+      product &&
+      Number.isInteger(quantity) &&
+      quantity > 0 &&
+      Number.isFinite(rate) &&
+      rate >= 0 &&
+      rate <= 100 - legacyDiscountRate
+        ? total + (Number(product.price) * quantity * rate) / 100
+        : total
+    );
+  }, 0);
   const totalAmount = rangePackageTotal + productSalesTotal;
-  const discountRate = discountPercentage === "" ? 0 : Number(discountPercentage);
-  const discountAmount =
-    Number.isFinite(discountRate) && discountRate >= 1 && discountRate <= 100
-      ? totalAmount * (discountRate / 100)
-      : 0;
+  const legacyDiscountAmount = totalAmount * (legacyDiscountRate / 100);
+  const discountAmount = legacyDiscountAmount + productDiscountAmount;
   const discountedTotal = totalAmount - discountAmount;
   const editingSale = soldItems.find((sale) => sale.id === editingSaleId);
   const previousProductQuantities = getProductQuantities(editingSale);
@@ -370,8 +418,36 @@ const filteredProducts = products.filter((product) => {
       return line
         ? current.map((item) => item.productId === productId
             ? { ...item, quantity: String(next) } : item)
-        : [...current, { productId, quantity: String(next) }];
+        : [...current, {
+            productId,
+            quantity: String(next),
+            discountPercentage: "",
+          }];
     });
+    setError("");
+  };
+
+  const setCartQuantity = (productId, value) => {
+    if (saving) return;
+    setProductLines((current) =>
+      current.map((line) =>
+        line.productId === productId
+          ? { ...line, quantity: value }
+          : line
+      )
+    );
+    setError("");
+  };
+
+  const changeCartDiscount = (productId, value) => {
+    if (saving) return;
+    setProductLines((current) =>
+      current.map((line) =>
+        line.productId === productId
+          ? { ...line, discountPercentage: value }
+          : line
+      )
+    );
     setError("");
   };
 
@@ -380,7 +456,7 @@ const filteredProducts = products.filter((product) => {
     setSoldDate(getTodayDate());
     setSoldTo("");
     setPaymentMethod("");
-    setDiscountPercentage("");
+    setLegacyDiscountPercentage(0);
     setCategories([]);
     setSelectedItems({});
     setQuantities({});
@@ -396,14 +472,26 @@ const filteredProducts = products.filter((product) => {
     const existingItems = Array.isArray(sale.packageItems)
       ? sale.packageItems
       : [];
-    const existingProductLines = Array.isArray(sale.productItems)
+    const savedProductItems = Array.isArray(sale.productItems)
       ? sale.productItems
+      : [];
+    const hasItemDiscounts = savedProductItems.some(
+      (item) => item.discountPercentage != null
+    );
+    const existingProductLines = savedProductItems
           .filter((item) => item.productId)
           .map((item) => ({
             productId: item.productId,
             quantity: String(item.quantity ?? ""),
-          }))
-      : [];
+            discountPercentage:
+              item.discountPercentage == null
+                ? ""
+                : String(item.discountPercentage),
+          }));
+    const savedLegacyDiscount = Number(
+      sale.legacyDiscountPercentage ??
+        (hasItemDiscounts ? 0 : sale.discountPercentage)
+    );
     const existingCategories = contents.length
       ? contents.map(({ category }) => category)
       : [...new Set(existingItems.map((item) => item.category).filter(Boolean))];
@@ -412,20 +500,38 @@ const filteredProducts = products.filter((product) => {
 
     if (contents.length) {
       contents.forEach(({ category, items }) => {
-        nextSelectedItems[category] = items.map((item) => item.name);
+        nextSelectedItems[category] = items.map((item) =>
+          getEditableRangePackageItemName(category, item.name)
+        );
         nextQuantities[category] = Object.fromEntries(
-          items.map((item) => [item.name, item.quantity ? String(item.quantity) : ""])
+          items.map((item) => [
+            getEditableRangePackageItemName(category, item.name),
+            item.quantity != null
+              ? String(item.quantity)
+              : category === "Ammunition Corkage"
+                ? "1"
+                : "",
+          ])
         );
       });
     } else {
       existingItems.forEach((item) => {
+        const editableItemName = getEditableRangePackageItemName(
+          item.category,
+          item.name
+        );
         nextSelectedItems[item.category] = [
           ...(nextSelectedItems[item.category] || []),
-          item.name,
+          editableItemName,
         ];
         nextQuantities[item.category] = {
           ...nextQuantities[item.category],
-          [item.name]: item.quantity ? String(item.quantity) : "",
+          [editableItemName]:
+            item.quantity != null
+              ? String(item.quantity)
+              : item.category === "Ammunition Corkage"
+                ? "1"
+                : "",
         };
       });
     }
@@ -438,8 +544,12 @@ const filteredProducts = products.filter((product) => {
     setSoldDate(sale.soldDate || getTodayDate());
     setSoldTo(sale.soldTo || "");
     setPaymentMethod(sale.paymentMethod || "");
-    setDiscountPercentage(
-      sale.discountPercentage ? String(sale.discountPercentage) : ""
+    setLegacyDiscountPercentage(
+      Number.isFinite(savedLegacyDiscount) &&
+        savedLegacyDiscount >= 0 &&
+        savedLegacyDiscount <= 100
+        ? savedLegacyDiscount
+        : 0
     );
     setCategories(
       existingCategories.filter((category) => category !== AMMUNITION_CATEGORY)
@@ -467,13 +577,6 @@ const filteredProducts = products.filter((product) => {
 
     if (!paymentMethod) {
       setError("Select a payment method.");
-      return;
-    }
-    if (
-      discountPercentage !== "" &&
-      (!Number.isFinite(discountRate) || discountRate < 1 || discountRate > 100)
-    ) {
-      setError("Discount must be a number from 1% to 100%.");
       return;
     }
     if (
@@ -536,9 +639,25 @@ const filteredProducts = products.filter((product) => {
 
       const quantity = Number(line.quantity);
       const unitPrice = Number(product.price);
+      const discountRate =
+        line.discountPercentage === "" || line.discountPercentage == null
+          ? 0
+          : Number(line.discountPercentage);
       const availableStock = getAvailableProductStock(product.id);
       if (!Number.isFinite(unitPrice) || unitPrice < 0) {
         setError(`${product.productName} has an invalid price in Product Management.`);
+        return;
+      }
+      if (
+        !Number.isFinite(discountRate) ||
+        discountRate < 0 ||
+        discountRate > 100 - legacyDiscountRate
+      ) {
+        setError(
+          `Discount for ${product.productName} must be between 0% and ${
+            100 - legacyDiscountRate
+          }%.`
+        );
         return;
       }
       if (quantity > availableStock) {
@@ -554,6 +673,8 @@ const filteredProducts = products.filter((product) => {
         barcode: product.barcode || "",
         unitPrice,
         quantity,
+        discountPercentage: discountRate,
+        discountAmount: (unitPrice * quantity * discountRate) / 100,
       });
     }
 
@@ -561,7 +682,12 @@ const filteredProducts = products.filter((product) => {
       setSaving(true);
       const subtotalAmount =
         rangePackageTotal + getProductItemsTotal(productItems);
-      const discountAmount = subtotalAmount * (discountRate / 100);
+      const itemDiscountAmount = productItems.reduce(
+        (total, item) => total + item.discountAmount,
+        0
+      );
+      const discountAmount =
+        legacyDiscountAmount + itemDiscountAmount;
       const saleData = {
         packageCategory: packageContents.length ? "Range Package" : "",
         packageCategories: packageContents.map(({ category }) => category),
@@ -572,7 +698,8 @@ const filteredProducts = products.filter((product) => {
         soldTo: soldTo.trim(),
         paymentMethod,
         subtotalAmount,
-        discountPercentage: discountRate,
+        discountPercentage: legacyDiscountRate,
+        legacyDiscountPercentage: legacyDiscountRate,
         discountAmount,
         totalAmount: subtotalAmount - discountAmount,
         updatedAt: serverTimestamp(),
@@ -637,6 +764,9 @@ const filteredProducts = products.filter((product) => {
             ? null
             : (retained > 0 ? retained * oldCost : 0) + (added > 0 ? added * currentCost : 0);
           const unitCost = costOfGoodsSold === null ? null : costOfGoodsSold / Number(item.quantity);
+          const discountPercentage = Number(item.discountPercentage) || 0;
+          const discountAmount =
+            (unitPrice * Number(item.quantity) * discountPercentage) / 100;
           return {
             ...item,
             unitCost,
@@ -644,6 +774,8 @@ const filteredProducts = products.filter((product) => {
             name: productData.productName || item.name,
             barcode: productData.barcode || "",
             unitPrice,
+            discountPercentage,
+            discountAmount,
           };
         });
         const productStockUpdates = {};
@@ -686,7 +818,13 @@ const filteredProducts = products.filter((product) => {
         });
         const nextSubtotalAmount =
           rangePackageTotal + getProductItemsTotal(pricedProductItems);
-        const nextDiscountAmount = nextSubtotalAmount * (discountRate / 100);
+        const nextItemDiscountAmount = pricedProductItems.reduce(
+          (total, item) => total + item.discountAmount,
+          0
+        );
+        const nextDiscountAmount =
+          (nextSubtotalAmount * legacyDiscountRate) / 100 +
+          nextItemDiscountAmount;
         const nextSaleData = {
           ...saleData,
           productItems: pricedProductItems,
@@ -694,6 +832,8 @@ const filteredProducts = products.filter((product) => {
             ? null
             : Math.round(pricedProductItems.reduce((sum, item) => sum + item.costOfGoodsSold, 0) * 100) / 100,
           subtotalAmount: nextSubtotalAmount,
+          discountPercentage: legacyDiscountRate,
+          legacyDiscountPercentage: legacyDiscountRate,
           discountAmount: nextDiscountAmount,
           totalAmount: nextSubtotalAmount - nextDiscountAmount,
         };
@@ -853,8 +993,10 @@ const filteredProducts = products.filter((product) => {
         getProductItemsTotal(sale.productItems);
 
   const getSaleDiscountPercentage = (sale) => {
-    const percentage = Number(sale.discountPercentage);
-    return Number.isInteger(percentage) && percentage >= 1 && percentage <= 100
+    const percentage = Number(
+      sale.legacyDiscountPercentage ?? sale.discountPercentage
+    );
+    return Number.isFinite(percentage) && percentage > 0 && percentage <= 100
       ? percentage
       : 0;
   };
@@ -868,6 +1010,12 @@ const filteredProducts = products.filter((product) => {
     sale.discountAmount != null && Number.isFinite(Number(sale.discountAmount))
       ? Number(sale.discountAmount)
       : getSaleSubtotal(sale) * (getSaleDiscountPercentage(sale) / 100);
+
+  const getSaleItemDiscountAmount = (sale) =>
+    (Array.isArray(sale.productItems) ? sale.productItems : []).reduce(
+      (total, item) => total + getProductItemDiscountAmount(item),
+      0
+    );
 
   return (
     <div className="sold-management-page">
@@ -1039,16 +1187,66 @@ const filteredProducts = products.filter((product) => {
               {productLines.map((line, index) => {
                 const product = products.find((item) => item.id === line.productId);
                 const quantity = Number(line.quantity);
+                const unitPrice = Number(product?.price) || 0;
+                const discountRate = Number(line.discountPercentage) || 0;
+                const validDiscountRate =
+                  Number.isFinite(discountRate) &&
+                  discountRate >= 0 &&
+                  discountRate <= 100 - legacyDiscountRate
+                    ? discountRate
+                    : 0;
+                const lineSubtotal = unitPrice * quantity;
+                const lineDiscountAmount =
+                  (lineSubtotal * validDiscountRate) / 100;
+                const availableStock = getAvailableProductStock(line.productId);
                 return (
                   <div className="sold-cart-row" key={line.productId}>
                     <div><strong>{product?.productName || "Unavailable product"}</strong>
-                      <small>{formatCurrency(Number(product?.price) || 0)} each</small></div>
-                    <div className="sold-cart-controls">
-                      <button type="button" disabled={saving} aria-label="Decrease quantity" onClick={() => changeCartQuantity(line.productId, -1)}>−</button>
-                      <span>{quantity}</span>
-                      <button type="button" aria-label="Increase quantity" disabled={saving || quantity >= getAvailableProductStock(line.productId)} onClick={() => changeCartQuantity(line.productId, 1)}>+</button>
+                      <small>{formatCurrency(unitPrice)} each</small></div>
+                    <label className="sold-cart-quantity">
+                      Quantity
+                      <span>Available: {availableStock}</span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={line.quantity}
+                        onChange={(event) =>
+                          setCartQuantity(line.productId, event.target.value)
+                        }
+                        aria-label={`Quantity for ${
+                          product?.productName || "product"
+                        }`}
+                        required
+                        disabled={saving}
+                      />
+                    </label>
+                    <label className="sold-cart-discount">
+                      Discount (%)
+                      <input
+                        type="number"
+                        min="0"
+                        max={100 - legacyDiscountRate}
+                        step="any"
+                        value={line.discountPercentage ?? ""}
+                        onChange={(event) =>
+                          changeCartDiscount(line.productId, event.target.value)
+                        }
+                        placeholder="0"
+                        disabled={saving}
+                      />
+                    </label>
+                    <div className="sold-cart-line-total">
+                      <small>Line total</small>
+                      <strong>
+                        {formatCurrency(lineSubtotal - lineDiscountAmount)}
+                      </strong>
+                      {lineDiscountAmount > 0 && (
+                        <small>
+                          −{formatCurrency(lineDiscountAmount)} discount
+                        </small>
+                      )}
                     </div>
-                    <strong>{formatCurrency((Number(product?.price) || 0) * quantity)}</strong>
                     <button type="button" className="sold-cart-remove" disabled={saving} onClick={() => removeProductLine(index)}>Remove</button>
                   </div>
                 );
@@ -1078,18 +1276,6 @@ const filteredProducts = products.filter((product) => {
                   <option value="GCash">GCash</option>
                   <option value="Bank Transfer">Bank Transfer</option>
                 </select>
-              </label>
-              <label>
-                Discount (%) <span>(optional, 1–100; decimals allowed)</span>
-                <input
-                  type="number"
-                  min="1"
-                  max="100"
-                  step="any"
-                  value={discountPercentage}
-                  onChange={(event) => setDiscountPercentage(event.target.value)}
-                  placeholder="No discount"
-                />
               </label>
             </div>
 
@@ -1154,7 +1340,14 @@ const filteredProducts = products.filter((product) => {
                   ) : (
                     <ul>
                       {rangePackageCatalog[category].map((item) => (
-                        <li key={item.name}>
+                        <li
+                          key={item.name}
+                          className={
+                            category === "Ammunition Corkage"
+                              ? "sold-corkage-item"
+                              : ""
+                          }
+                        >
                           <label className="range-package-item-option">
                             <input
                               type="checkbox"
@@ -1165,7 +1358,7 @@ const filteredProducts = products.filter((product) => {
                           </label>
                           <strong>
                             {item.pricing === "corkage-flat"
-                              ? `${formatCurrency(item.unitPrice)} flat rate`
+                              ? `${formatCurrency(item.unitPrice)} per fee`
                               : `${formatCurrency(item.unitPrice)} per ${item.unit}`}
                           </strong>
                           {(category === AMMUNITION_CATEGORY ||
@@ -1173,6 +1366,8 @@ const filteredProducts = products.filter((product) => {
                             selectedItems[category]?.includes(item.name) && (
                               <label className="range-package-quantity">
                                 Quantity
+                                {category === "Ammunition Corkage" &&
+                                  ` (${item.unit})`}
                                 <input
                                   type="number"
                                   min="1"
@@ -1191,6 +1386,17 @@ const filteredProducts = products.filter((product) => {
                                 />
                               </label>
                             )}
+                          {category === "Ammunition Corkage" &&
+                            selectedItems[category]?.includes(item.name) &&
+                            Number(quantities[category]?.[item.name]) > 0 && (
+                              <p className="sold-corkage-line-total">
+                                Line total:{" "}
+                                {formatCurrency(
+                                  item.unitPrice *
+                                    Number(quantities[category][item.name])
+                                )}
+                              </p>
+                            )}
                         </li>
                       ))}
                     </ul>
@@ -1205,9 +1411,17 @@ const filteredProducts = products.filter((product) => {
                 <span>Subtotal</span>
                 <strong>{formatCurrency(totalAmount)}</strong>
               </div>
+              {legacyDiscountRate > 0 && (
+                <div>
+                  <span>
+                    Existing sale-wide discount ({legacyDiscountRate}%)
+                  </span>
+                  <strong>−{formatCurrency(legacyDiscountAmount)}</strong>
+                </div>
+              )}
               <div>
-                <span>Discount ({discountRate || 0}%)</span>
-                <strong>−{formatCurrency(discountAmount)}</strong>
+                <span>Item discounts</span>
+                <strong>−{formatCurrency(productDiscountAmount)}</strong>
               </div>
               <div className="sold-total">
                 <span>Total due</span>
@@ -1308,11 +1522,24 @@ const filteredProducts = products.filter((product) => {
               <div><dt>Payment Method</dt><dd>{viewingSale.paymentMethod || "—"}</dd></div>
               <div><dt>Subtotal</dt><dd>{formatCurrency(getSaleSubtotal(viewingSale))}</dd></div>
               <div>
-                <dt>Discount</dt>
+                <dt>Sale-wide discount</dt>
                 <dd>
-                  {getSaleDiscountPercentage(viewingSale)}% (
-                  {formatCurrency(getSaleDiscountAmount(viewingSale))})
+                  {getSaleDiscountPercentage(viewingSale) > 0
+                    ? `${getSaleDiscountPercentage(viewingSale)}% (${formatCurrency(
+                        (getSaleSubtotal(viewingSale) *
+                          getSaleDiscountPercentage(viewingSale)) /
+                          100
+                      )})`
+                    : "—"}
                 </dd>
+              </div>
+              <div>
+                <dt>Item discounts</dt>
+                <dd>{formatCurrency(getSaleItemDiscountAmount(viewingSale))}</dd>
+              </div>
+              <div>
+                <dt>Total discount</dt>
+                <dd>{formatCurrency(getSaleDiscountAmount(viewingSale))}</dd>
               </div>
             </dl>
             {getSaleContents(viewingSale).length > 0 && (
@@ -1349,19 +1576,27 @@ const filteredProducts = products.filter((product) => {
                   <div className="sold-detail-categories">
                     <section>
                       <ul>
-                        {viewingSale.productItems.map((item, index) => (
-                          <li key={`${item.productId}-${index}`}>
-                            <span>
-                              {item.name} · Qty {item.quantity}
-                              {item.barcode && ` · Barcode ${item.barcode}`}
-                            </span>
-                            <strong>
-                              {formatCurrency(
-                                Number(item.unitPrice) * Number(item.quantity)
-                              )}
-                            </strong>
-                          </li>
-                        ))}
+                        {viewingSale.productItems.map((item, index) => {
+                          const itemDiscount =
+                            getProductItemDiscountAmount(item);
+                          return (
+                            <li key={`${item.productId}-${index}`}>
+                              <span>
+                                {item.name} · Qty {item.quantity}
+                                {item.barcode && ` · Barcode ${item.barcode}`}
+                                {itemDiscount > 0 && (
+                                  <small className="sold-item-discount">
+                                    Discount ({Number(item.discountPercentage) || 0}%): −
+                                    {formatCurrency(itemDiscount)}
+                                  </small>
+                                )}
+                              </span>
+                              <strong>
+                                {formatCurrency(getProductItemTotal(item))}
+                              </strong>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </section>
                   </div>
@@ -1408,11 +1643,24 @@ const filteredProducts = products.filter((product) => {
             <div><dt>Payment Method</dt><dd>{printingSale.paymentMethod || "—"}</dd></div>
             <div><dt>Subtotal</dt><dd>{formatCurrency(getSaleSubtotal(printingSale))}</dd></div>
             <div>
-              <dt>Discount</dt>
+              <dt>Sale-wide discount</dt>
               <dd>
-                {getSaleDiscountPercentage(printingSale)}% (
-                {formatCurrency(getSaleDiscountAmount(printingSale))})
+                {getSaleDiscountPercentage(printingSale) > 0
+                  ? `${getSaleDiscountPercentage(printingSale)}% (${formatCurrency(
+                      (getSaleSubtotal(printingSale) *
+                        getSaleDiscountPercentage(printingSale)) /
+                        100
+                    )})`
+                  : "—"}
               </dd>
+            </div>
+            <div>
+              <dt>Item discounts</dt>
+              <dd>{formatCurrency(getSaleItemDiscountAmount(printingSale))}</dd>
+            </div>
+            <div>
+              <dt>Total discount</dt>
+              <dd>{formatCurrency(getSaleDiscountAmount(printingSale))}</dd>
             </div>
           </dl>
           {getSaleContents(printingSale).map(({ category, items }) => (
@@ -1439,19 +1687,25 @@ const filteredProducts = products.filter((product) => {
               <section>
                 <h2>Products</h2>
                 <ul>
-                  {printingSale.productItems.map((item, index) => (
-                    <li key={`${item.productId}-${index}`}>
-                      <span>
-                        {item.name} · {item.quantity}
-                        {item.barcode && ` · Barcode ${item.barcode}`}
-                      </span>
-                      <strong>
-                        {formatCurrency(
-                          Number(item.unitPrice) * Number(item.quantity)
-                        )}
-                      </strong>
-                    </li>
-                  ))}
+                  {printingSale.productItems.map((item, index) => {
+                    const itemDiscount =
+                      getProductItemDiscountAmount(item);
+                    return (
+                      <li key={`${item.productId}-${index}`}>
+                        <span>
+                          {item.name} · {item.quantity}
+                          {item.barcode && ` · Barcode ${item.barcode}`}
+                          {itemDiscount > 0 && (
+                            <small className="sold-item-discount">
+                              Discount ({Number(item.discountPercentage) || 0}%): −
+                              {formatCurrency(itemDiscount)}
+                            </small>
+                          )}
+                        </span>
+                        <strong>{formatCurrency(getProductItemTotal(item))}</strong>
+                      </li>
+                    );
+                  })}
                 </ul>
               </section>
             )}

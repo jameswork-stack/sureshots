@@ -23,7 +23,7 @@ const EMPTY_PRODUCT_FORM = {
   details: "",
   price: "",
   stock: "",
-  purchaseCost: "",
+  unitCost: "",
   reason: "",
   barcode: "",
 };
@@ -66,6 +66,7 @@ export default function Product() {
   const [stockProduct, setStockProduct] = useState(null);
   const [stockForm, setStockForm] = useState({ quantity: "", cost: "" });
   const [logProduct, setLogProduct] = useState(null);
+  const [viewProduct, setViewProduct] = useState(null);
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [logError, setLogError] = useState("");
@@ -131,7 +132,7 @@ const productGroups = Array.from(
 );
 
   useEffect(() => {
-  if (!showForm && !stockProduct && !logProduct) return;
+  if (!showForm && !stockProduct && !logProduct && !viewProduct) return;
 
   const previousOverflow = document.body.style.overflow;
 
@@ -140,7 +141,7 @@ const productGroups = Array.from(
   return () => {
     document.body.style.overflow = previousOverflow;
   };
-}, [showForm, stockProduct, logProduct]);
+}, [showForm, stockProduct, logProduct, viewProduct]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -207,7 +208,7 @@ const productGroups = Array.from(
             details: product.details || "",
             price: String(product.price ?? ""),
             stock: String(product.stock ?? ""),
-            purchaseCost: validCost(product.unitCost) ? String(Number(product.stock) * product.unitCost) : "",
+            unitCost: validCost(product.unitCost) ? String(product.unitCost) : "",
             reason: "",
             barcode: product.barcode || "",
           }
@@ -241,10 +242,11 @@ const productGroups = Array.from(
     const details = productForm.details.trim();
     const price = Number(productForm.price);
     const stock = Number(productForm.stock);
-    const purchaseCost = Number(productForm.purchaseCost);
+    const unitCost = Number(productForm.unitCost);
     const purchaseQuantity = stock;
-    if (productForm.purchaseCost.trim() === "" || !Number.isFinite(purchaseCost) || purchaseCost < 0 || !Number.isInteger(purchaseQuantity) || purchaseQuantity < 0 || (stock === 0 && purchaseCost !== 0)) {
-      setFormError("Enter a valid cost. Zero stock must have zero total cost.");
+    const purchaseCost = stock * unitCost;
+    if (productForm.unitCost.trim() === "" || !validCost(unitCost) || !validCost(purchaseCost)) {
+      setFormError("Enter a valid cost per unit and stock quantity.");
       return;
     }
 
@@ -276,7 +278,7 @@ const productGroups = Array.from(
         stock,
         purchaseCost,
         purchaseQuantity,
-        unitCost: stock > 0 ? purchaseCost / stock : null,
+        unitCost,
         barcode: productForm.barcode.trim(),
       };
       const ref = editingProductId ? doc(db, PRODUCTS_COLLECTION, editingProductId) : doc(collection(db, PRODUCTS_COLLECTION));
@@ -289,7 +291,7 @@ const productGroups = Array.from(
         if (before && JSON.stringify(snapshotFields(before)) !== JSON.stringify(snapshotFields(original))) {
           throw new Error("Product changed since loading. Refresh the page before editing.");
         }
-        const next = { ...productData, unitCost: stock === 0 ? (before?.unitCost ?? null) : productData.unitCost };
+        const next = { ...productData };
         if (before) tx.update(ref, { ...next, updatedAt: serverTimestamp() });
         else tx.set(ref, { ...next, createdAt: serverTimestamp() });
         tx.set(audit, { productId: ref.id, productName, type: before ? "Edit" : "Create", reason: before ? productForm.reason.trim() : "Initial product", before: before ? snapshotFields(before) : null, after: snapshotFields(next), ...actor(), createdAt: serverTimestamp() });
@@ -421,6 +423,7 @@ const productGroups = Array.from(
             role="menu"
             style={{ top: menuPosition.top, left: menuPosition.left }}
           >
+            <button type="button" role="menuitem" onClick={() => { setViewProduct(selectedProduct); closeMenu(); }}>View</button>
             <button
               type="button"
               role="menuitem"
@@ -442,6 +445,30 @@ const productGroups = Array.from(
           </div>,
           document.body
         )}
+
+      {viewProduct && createPortal(
+        <div className="product-modal-overlay">
+          <section className="product-form product-modal-form" role="dialog" aria-modal="true" aria-labelledby="product-view-title">
+            <div className="product-modal-header">
+              <h2 id="product-view-title">Product Information</h2>
+              <button type="button" className="product-modal-close" onClick={() => setViewProduct(null)} aria-label="Close">×</button>
+            </div>
+            <div className="product-form-grid">
+              <p><strong>Product Name:</strong> {viewProduct.productName}</p>
+              <p><strong>Category:</strong> {viewProduct.category}</p>
+              <p><strong>Details:</strong> {viewProduct.details}</p>
+              <p><strong>Barcode:</strong> {viewProduct.barcode || "—"}</p>
+              <p><strong>Selling Price:</strong> {formatCurrency(Number(viewProduct.price) || 0)}</p>
+              <p><strong>Stock Quantity:</strong> {viewProduct.stock}</p>
+              <p><strong>Cost per Unit:</strong> {validCost(viewProduct.unitCost) ? formatCurrency(viewProduct.unitCost) : "Not set"}</p>
+              <p><strong>Total Stock Cost:</strong> {validCost(viewProduct.unitCost) ? formatCurrency(Number(viewProduct.stock) * viewProduct.unitCost) : "Not set"}</p>
+            </div>
+            <div className="product-form-actions">
+              <button type="button" className="product-cancel-button" onClick={() => setViewProduct(null)}>Close</button>
+            </div>
+          </section>
+        </div>, document.body
+      )}
 
       {showForm && createPortal(
   <div className="product-modal-overlay">
@@ -530,12 +557,8 @@ const productGroups = Array.from(
             </div>
 
             <div className="product-form-field">
-              <label htmlFor="product-purchase-cost">Total Cost of Entered Stock (₱)</label>
-              <input id="product-purchase-cost" name="purchaseCost" type="number" min="0" step="0.01" value={productForm.purchaseCost} onChange={handleFormChange} required />
-            </div>
-            <div className="product-form-field">
-              <label htmlFor="product-unit-cost">Cost per Unit (automatic)</label>
-              <input id="product-unit-cost" readOnly value={productForm.purchaseCost !== "" && Number(productForm.stock) > 0 ? formatCurrency(Number(productForm.purchaseCost) / Number(productForm.stock)) : ""} />
+              <label htmlFor="product-unit-cost">Cost per Unit (₱)</label>
+              <input id="product-unit-cost" name="unitCost" type="number" min="0" step="any" value={productForm.unitCost} onChange={handleFormChange} required />
             </div>
             <div className="product-form-field">
               <label htmlFor="product-stock">Stock Quantity</label>
@@ -551,6 +574,10 @@ const productGroups = Array.from(
               />
             </div>
           </div>
+
+          <p className="product-cost-summary" aria-live="polite">
+            Total Cost of Entered Stock: <strong>{formatCurrency((Number(productForm.stock) || 0) * (Number(productForm.unitCost) || 0))}</strong>
+          </p>
 
           {editingProductId && <div className="product-form-field"><label htmlFor="product-edit-reason">Edit reason</label><textarea id="product-edit-reason" name="reason" required value={productForm.reason} onChange={handleFormChange} /></div>}
           {formError && (
@@ -677,7 +704,6 @@ const productGroups = Array.from(
                         <th>Product Name</th>
                         <th>Details</th>
                         <th>Price</th>
-                        <th>Cost / Unit</th>
                         <th>Stock</th>
                         <th>Barcode</th>
                         <th>Action</th>
@@ -689,7 +715,6 @@ const productGroups = Array.from(
                           <td>{product.productName}</td>
                           <td>{product.details}</td>
                           <td>{formatCurrency(Number(product.price) || 0)}</td>
-                          <td>{product.unitCost == null ? "Not set" : formatCurrency(product.unitCost)}</td>
                           <td>{product.stock}</td>
                           <td>{product.barcode || "-"}</td>
                           <td className="product-action-cell">
@@ -708,7 +733,7 @@ const productGroups = Array.from(
                                 const rect =
                                   event.currentTarget.getBoundingClientRect();
                                 const menuWidth = 160;
-                                const menuHeight = 190;
+                                const menuHeight = 230;
                                 const top =
                                   rect.bottom + menuHeight + 8 >
                                   window.innerHeight

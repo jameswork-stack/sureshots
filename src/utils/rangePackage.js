@@ -35,9 +35,9 @@ export const RANGE_PACKAGE_CATALOG = {
       pricing: "corkage-per-round",
     },
     {
-      name: "101+ rounds (₱1,000 flat)",
+      name: "101+ rounds (₱1,000 per fee)",
       unitPrice: 1000,
-      unit: "rounds",
+      unit: "fee",
       pricing: "corkage-flat",
     },
   ],
@@ -63,6 +63,9 @@ export const RANGE_PACKAGE_CATEGORY_LABELS = {
 
 export const RANGE_PACKAGE_QUANTITY_ITEMS = {
   "Range Fee Rates": ["Range Fee", "Target Board"],
+  "Ammunition Corkage": RANGE_PACKAGE_CATALOG["Ammunition Corkage"].map(
+    (item) => item.name
+  ),
   "Ammunition Prices": RANGE_PACKAGE_CATALOG["Ammunition Prices"].map(
     (item) => item.name
   ),
